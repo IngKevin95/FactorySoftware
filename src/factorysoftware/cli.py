@@ -7,6 +7,7 @@ from pathlib import Path
 
 from factorysoftware.adapters import registry
 from factorysoftware.installer import install_all, update_all, uninstall_all
+from factorysoftware.requirements.validator import validate_requirements as _validate_reqs
 from factorysoftware.state import (
     append_log,
     read_log,
@@ -123,6 +124,15 @@ def cmd_log(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_validate_requirements(args: argparse.Namespace) -> int:
+    project_root = Path(args.project_root)
+    log_path = Path(args.log)
+    errors = _validate_reqs(project_root, log_path)
+    for e in errors:
+        print(e)
+    return 1 if errors else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="factory")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -150,6 +160,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--project-root", default=".")
     p.add_argument("--data", default=None)
     p.set_defaults(func=cmd_log)
+
+    # validate <subcommand>
+    validate_p = sub.add_parser("validate")
+    validate_sub = validate_p.add_subparsers(dest="validate_command", required=True)
+
+    p = validate_sub.add_parser("requirements")
+    p.add_argument("--project-root", default=".")
+    p.add_argument("--log", default=".factory/log.jsonl")
+    p.set_defaults(func=cmd_validate_requirements)
 
     return parser
 
