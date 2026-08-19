@@ -100,18 +100,39 @@ inicio de la fase, antes de cualquier ADR:
 - **Restricciones blandas**: preferencias — se pueden pisar en una ADR
   siempre que la justificación teórica sea explícita y quede registrada por
   qué se decidió no seguirlas.
+- **Escenarios de calidad (NFR medibles)**: requisitos no funcionales
+  expresados como escenario verificable, no como adjetivo ("rápido",
+  "escalable" no son escenarios). Formato tabla, estilo ATAM:
 
-Toda ADR referencia qué restricciones de `constraints.md` aplicó.
+  | ID | Estímulo | Entorno | Respuesta | Medida de respuesta |
+  |----|----------|---------|-----------|----------------------|
+  | NFR-1 | 500 usuarios concurrentes hacen checkout | Producción, hora pico | Sistema procesa sin degradar | p95 de latencia < 200ms |
+
+  Se completan a partir de HU/PRD que ya insinúan un NFR (ej. una HU que
+  menciona "en tiempo real" o "muchos usuarios a la vez") más lo que el
+  Asesor eliza y sugiere explícitamente si detecta un NFR implícito que
+  nadie escribió — mismo patrón de sugerencia-no-silenciosa que las
+  pantallas transversales de Requerimientos. Un proyecto sin NFR relevantes
+  puede dejar la tabla vacía; lo que no puede pasar es que exista un NFR
+  real (mencionado en alguna HU) y no quede acá como escenario medible.
+
+Toda ADR referencia qué restricciones y qué escenarios de calidad de
+`constraints.md` aplicó.
 
 ### `adrs/ADR-N.md`
 
 Frontmatter: `id`, `estado` (propuesta/aceptada/retirada), `afecta_a`
 (opcional, ids de otras ADR relacionadas), `restricciones_aplicadas` (ids/
-nombres de restricciones de `constraints.md`). Cuerpo, formato ADR extendido
-— cada sección es obligatoria, no se puede omitir por "obvia":
+nombres de restricciones de `constraints.md`), `nfr_aplicados` (ids `NFR-N`
+de la tabla de escenarios de calidad que esta decisión atiende, o `N/A` si
+ninguno aplica — nunca se omite el campo, se declara explícitamente que no
+aplica). Cuerpo, formato ADR extendido — cada sección es obligatoria, no se
+puede omitir por "obvia":
 
 1. **Contexto**: qué problema técnico se resuelve.
-2. **Restricciones aplicables**: cuáles de `constraints.md` entran en juego.
+2. **Restricciones y escenarios de calidad aplicables**: cuáles de
+   `constraints.md` entran en juego, incluyendo qué `NFR-N` atiende esta
+   decisión si corresponde.
 3. **Alternativas consideradas**: mínimo 2 opciones reales (nunca una sola
    opción "porque sí"). Por cada una: **fundamento teórico** — qué práctica,
    patrón, benchmark o consenso de la industria la respalda o la
@@ -312,6 +333,12 @@ d. Si la decisión final difiere de lo que el fundamento teórico sugeriría
    como mejor opción para el contexto, la sección "Recomendación honesta del
    asesor" documenta ese desacuerdo — no puede quedar una ADR donde el
    agente decidió en contra de la teoría sin decirlo.
+e. Todo `NFR-N` de la tabla de escenarios de calidad en `constraints.md`
+   queda atendido por al menos una ADR con ese id en `nfr_aplicados` — un
+   NFR medible sin ninguna decisión que lo atienda es hallazgo bloqueante,
+   no queda como "implícito" en el stack elegido. A diferencia de a–d, esta
+   es una verificación de referencia cruzada, no de juicio — se puede (y
+   debe) correr también de forma mecánica vía `factory validate architecture`.
 
 ### Checklist del cierre de fase (después de `screens`, antes del gate)
 
@@ -416,7 +443,9 @@ pytest, cero IO externo, fixtures de árbol de documentos en `tmp_path`:
   por cada verificación estructural 1–6 (HU de endpoint sin API, HU de
   pantalla sin screen, `apis_consumidas` inexistente, `implementa` con HU
   inexistente/retirada, columna de trazabilidad incompleta, SCREEN-N sin
-  prototipo corrible).
+  prototipo corrible), más un caso negativo para la verificación e de
+  `adrs_audit` (NFR-N en `constraints.md` sin ninguna ADR que lo referencie
+  en `nfr_aplicados`).
 
 ## Preguntas abiertas para specs futuros
 
