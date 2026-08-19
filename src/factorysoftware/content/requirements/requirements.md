@@ -21,6 +21,10 @@ steps:
     depende_de: [hu_por_epica]
     fan_out: null
     paralelizable: false
+  - id: audit_loop
+    depende_de: [traceability, flujos]
+    fan_out: null
+    paralelizable: false
 ---
 
 Content pack de la fábrica que guía al agente para producir el conjunto de documentos de Requerimientos de un proyecto: PRD, Épicas, Historias de Usuario (HU), Flujos de negocio y una matriz de trazabilidad. Este conjunto es el norte funcional de todo el proyecto — Construcción y QA se validan contra él, no al revés. Ningún detalle técnico (contratos de API, diseño de pantallas, arquitectura) se define acá; eso es responsabilidad de la fase de Arquitectura.
@@ -197,3 +201,46 @@ Corre en paralelo con el paso `traceability` (ambos dependen solo de `hu_por_epi
 - [ ] Identificar secuencias de negocio coherentes que crucen multiples HU y representen objetivos reales.
 - [ ] Crear un archivo `FLUJO-N.md` por cada flujo en `docs/requirements/flujos/`.
 - [ ] Logear `{"type": "step_complete", "step": "flujos", "output_files": [...lista de archivos creados...]}`.
+
+## Paso: audit_loop
+
+Loop auditor-constructor (maximo 3 iteraciones) + gate de aprobacion humana explicita.
+No avanza a Arquitectura sin aprobacion del usuario.
+
+## Prerequisitos
+
+- `docs/requirements/traceability.md` debe existir (evento `step_complete` de `traceability` en el log).
+- Al menos un `docs/requirements/flujos/FLUJO-N.md` (evento `step_complete` de `flujos` en el log).
+- Si alguno falta: listar que falta y no continuar.
+
+## Loop (maximo 3 iteraciones)
+
+Por cada iteracion:
+
+- [ ] **Checks deterministicos (1-7):** Correr `factory validate requirements --project-root . --log .factory/log.jsonl` y capturar la lista de errores.
+- [ ] Si hay errores: corregirlos editando los archivos afectados, luego volver a correr el validator para confirmar que quedo limpio.
+- [ ] **Checks semanticos (8-11):** Revisar con lectura propia del agente:
+  - Check 8: Cada Epica tiene meta de negocio trazable a un objetivo explicito del PRD (sin epicas flotantes fuera del alcance declarado).
+  - Check 9: No hay contradicciones entre criterios de aceptacion de HU distintas dentro de la misma epica.
+  - Check 10: El alcance del PRD no tiene huecos evidentes en las epicas (cobertura), ni las epicas se salen del alcance (scope creep).
+  - Check 11: Todo objetivo multi-paso del PRD tiene al menos un FLUJO-N que lo cubre de inicio a fin. Un flujo importante sin documentar es hallazgo BLOQUEANTE.
+- [ ] Si hay hallazgos semanticos: corregirlos.
+- [ ] Si ambas validaciones pasan: salir del loop antes de las 3 iteraciones.
+
+## Gate de aprobacion humana (BLOQUEO DURO)
+
+Despues del loop (con o sin iteraciones pendientes):
+
+- [ ] Presentar resumen al usuario: numero de iteraciones realizadas, hallazgos encontrados y corregidos, hallazgos que quedaron pendientes (si los hay).
+- [ ] Preguntar explicitamente al usuario (via el mecanismo de pregunta del proveedor detectado):
+  **"Apruebas el conjunto completo de Requerimientos (PRD + Epicas + HU + Flujos + Trazabilidad) y autorizas avanzar a la fase de Arquitectura?"**
+- [ ] Si el usuario dice NO: listar los puntos que senala, corregirlos, y volver a preguntar (no cuenta como iteracion del loop auditor).
+- [ ] Si el usuario dice SI:
+  - Logear `{"type": "step_complete", "step": "audit_loop", "iterations": N, "approved_by": "user"}`.
+  - Marcar la fase de Requerimientos como completa.
+- [ ] NUNCA avanzar a Arquitectura sin que `approved_by: "user"` este en el log - ni si el usuario lo pide de forma ambigua, ni "por cortesia".
+
+## Manejo de errores
+
+- Si cualquier paso falla con hallazgos no corregibles en <= 3 iteraciones: pausar, presentar al usuario los hallazgos pendientes, y esperar instrucciones antes de continuar.
+- Si el usuario pide avanzar a Arquitectura sin que el log contenga `{"step": "audit_loop", "approved_by": "user"}`: negarse, explicar que falta la aprobacion del gate, listar que hallazgos quedaron pendientes.
