@@ -137,7 +137,7 @@ def cmd_validate_requirements(args: argparse.Namespace) -> int:
 def cmd_validate_architecture(args) -> int:
     errors = _validate_arch(Path(args.project_root))
     for e in errors:
-        print(e)
+        print(e, file=sys.stderr)
     return 1 if errors else 0
 
 

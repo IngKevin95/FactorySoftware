@@ -26,44 +26,47 @@ def validate_architecture(project_root: Path) -> list[str]:
     screens = list((arch / "screens").glob("SCREEN-*.md")) if (arch / "screens").exists() else []
     screen_ids = {f.stem for f in screens}
     
+    # Pre-parse APIs and Screens to avoid O(H * (A+S)) reads
+    api_implementa = {}
+    for api in apis:
+        fm = _parse_frontmatter(api.read_text(encoding="utf-8"))
+        api_implementa[api.stem] = fm.get("implementa", [])
+        
+    screen_fms = {}
+    for screen in screens:
+        screen_fms[screen.stem] = _parse_frontmatter(screen.read_text(encoding="utf-8"))
+    
     # 1. & 2. HU with anexo
     for hu_path in hu_files:
         if "retiradas" in hu_path.parts:
             continue
         text = hu_path.read_text(encoding="utf-8")
         if "anexo endpoint" in text.lower():
-            implemented = False
-            for api in apis:
-                fm = _parse_frontmatter(api.read_text(encoding="utf-8"))
-                if hu_path.stem in fm.get("implementa", []):
-                    implemented = True
-                    break
+            implemented = any(hu_path.stem in impl_list for impl_list in api_implementa.values())
             if not implemented:
                 errors.append(f"Check 1: HU '{hu_path.stem}' requests an endpoint but no API-N.md implements it")
         
         if "anexo pantalla" in text.lower():
-            implemented = False
-            for screen in screens:
-                fm = _parse_frontmatter(screen.read_text(encoding="utf-8"))
-                if hu_path.stem in fm.get("implementa", []):
-                    implemented = True
-                    break
+            implemented = any(hu_path.stem in fm.get("implementa", []) for fm in screen_fms.values())
             if not implemented:
                 errors.append(f"Check 2: HU '{hu_path.stem}' requests a screen but no SCREEN-N.md implements it")
                 
     # 3. apis_consumidas must exist
-    for screen in screens:
-        fm = _parse_frontmatter(screen.read_text(encoding="utf-8"))
+    for screen_stem, fm in screen_fms.items():
         for api_ref in fm.get("apis_consumidas", []):
             if api_ref not in api_ids:
-                errors.append(f"Check 3: {screen.stem} apis_consumidas '{api_ref}' not found")
+                errors.append(f"Check 3: {screen_stem} apis_consumidas '{api_ref}' not found")
                 
     # 4. implementa valid HU
-    for f in apis + screens:
-        fm = _parse_frontmatter(f.read_text(encoding="utf-8"))
+    for api_stem, impl_list in api_implementa.items():
+        for hu in impl_list:
+            if hu not in hu_active:
+                errors.append(f"Check 4: {api_stem} implements '{hu}' which is not active")
+                
+    for screen_stem, fm in screen_fms.items():
         for hu in fm.get("implementa", []):
             if hu not in hu_active:
-                errors.append(f"Check 4: {f.stem} implements '{hu}' which is not active")
+                errors.append(f"Check 4: {screen_stem} implements '{hu}' which is not active")
 
     # 6. screens have prototypes
     proto_dir = project_root / "prototype"
