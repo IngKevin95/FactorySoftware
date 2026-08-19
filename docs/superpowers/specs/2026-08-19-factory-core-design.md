@@ -19,6 +19,26 @@ fase (skill de requerimientos, skill de arquitectura, etc.) y los packs por
 tipo de proyecto (backend/mobile/seguridad/...) son subsistemas separados con
 sus propios specs, construidos sobre este núcleo.
 
+## Prioridad de implementación (v1)
+
+Los 5 adapters se implementan en v1, pero no con el mismo nivel de rigor:
+
+- **Claude Code y Antigravity son los proveedores primarios** — el usuario
+  los prueba de inmediato. Sus adapters requieren verificación real del
+  formato de instrucciones (no best-effort) y quedan cubiertos por tests de
+  `detect()`/`render()` contra fixtures fieles al formato real de cada uno.
+  Antigravity en particular necesita investigación activa (búsqueda web)
+  antes de escribir el adapter — al ser prioritario, no alcanza con el
+  fallback genérico descrito más abajo; si la investigación no encuentra un
+  formato confiable, se marca como bloqueante y se avisa antes de continuar,
+  en vez de instalar un fallback sin verificar.
+- **Copilot, Codex y OpenCode son secundarios** — deben quedar listos y
+  funcionales en v1, pero no se prueban de inmediato. Para estos sí aplica
+  el criterio "best-effort con fallback marcado como no verificado" descrito
+  en la sección de notas por proveedor: se implementan con la mejor
+  información disponible, se documenta cualquier supuesto no confirmado, y
+  se corrigen después si la prueba real revela diferencias.
+
 ## No-objetivos (v1)
 
 - Llamar directamente a ninguna API de LLM. El paquete nunca habla con un
@@ -125,12 +145,15 @@ sea lo más simple posible (un solo comando, cero preguntas en el caso común).
 - **OpenCode**: tratado como Codex (convención `AGENTS.md`) para el adapter
   básico v1 — verificar contra la documentación vigente antes de
   implementar, el formato puede diferir.
-- **Antigravity**: formato no conocido con confianza a partir del
-  conocimiento actual. El adapter se entrega best-effort; la tarea de
-  implementación debe incluir un paso de verificación por búsqueda web antes
-  de escribirlo de verdad. Si no se encuentra un formato confiable, cae a un
-  archivo genérico estilo `AGENTS.md` y lo marca en el manifest como
-  `"confidence": "unverified"`.
+- **Antigravity**: proveedor primario (ver "Prioridad de implementación"),
+  formato no conocido con confianza a partir del conocimiento actual. La
+  tarea de implementación empieza con investigación activa (búsqueda web)
+  del formato real de instrucciones/skills antes de escribir una sola línea
+  del adapter. Si esa investigación no logra confirmar el formato con
+  confianza razonable, se detiene y se reporta al usuario en vez de instalar
+  un fallback sin verificar — al ser un proveedor que se prueba de
+  inmediato, un adapter que escribe en el lugar equivocado es peor que no
+  tener adapter.
 
 ## Comandos de ciclo de vida
 
