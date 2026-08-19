@@ -67,3 +67,69 @@ def read_log(project_root: Path) -> list[dict]:
     if not path.exists():
         return []
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+_PHASE_ORDER = ["requirements", "architecture", "construction", "qa"]
+_PHASE_LABELS = {
+    "requirements": "Requerimientos",
+    "architecture": "Arquitectura",
+    "construction": "Construcción",
+    "qa": "QA",
+}
+
+
+def _phase_status_icon(events: list[dict], phase: str) -> str:
+    gates = [
+        e for e in events
+        if e["event_type"] == "phase_gate" and e["data"].get("phase") == phase
+    ]
+    if not gates:
+        return "⚪ no iniciado"
+    last = gates[-1]
+    if last["data"].get("result") == "approved":
+        return "✅ completo"
+    return "🟡 en progreso"
+
+
+def _epic_rows(events: list[dict], phase: str) -> list[tuple[str, str]]:
+    steps = [
+        e for e in events
+        if e["event_type"] == "pipeline_step"
+        and e["data"].get("phase") == phase
+        and e["data"].get("scope")
+        and e["data"]["scope"] != "all"
+    ]
+    latest_by_epic: dict[str, dict] = {}
+    for e in steps:
+        latest_by_epic[e["data"]["scope"]] = e["data"]
+    rows = []
+    for epic, data in sorted(latest_by_epic.items()):
+        estado = "🟢 en progreso" if data.get("estado") == "iniciado" else "✅ completo"
+        rows.append((epic, f"{data.get('step_id', '')} — {estado}"))
+    return rows
+
+
+def generate_board(project_root: Path) -> str:
+    events = read_log(project_root)
+    lines = ["# Tablero de la Fábrica (auto-generado, no editar a mano)", ""]
+    for phase in _PHASE_ORDER:
+        lines.append(f"### {_PHASE_LABELS[phase]}: {_phase_status_icon(events, phase)}")
+    rows = []
+    for phase in _PHASE_ORDER:
+        rows.extend(_epic_rows(events, phase))
+    if rows:
+        lines.append("")
+        lines.append("## Detalle por unidad")
+        lines.append("")
+        lines.append("| Unidad | Paso |")
+        lines.append("|---|---|")
+        for epic, detail in rows:
+            lines.append(f"| {epic} | {detail} |")
+    return "\n".join(lines) + "\n"
+
+
+def write_board(project_root: Path) -> None:
+    _factory_dir(project_root).mkdir(parents=True, exist_ok=True)
+    (_factory_dir(project_root) / "board.md").write_text(
+        generate_board(project_root), encoding="utf-8"
+    )
