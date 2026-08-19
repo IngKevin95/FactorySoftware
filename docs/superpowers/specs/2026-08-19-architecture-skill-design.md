@@ -192,6 +192,15 @@ si aplica). No es diseño visual pixel-perfect; es el contrato
 funcional-técnico que tanto el prototipo (`ui_prototype`, siguiente paso)
 como Construcción usan para armar el componente real.
 
+Las reglas de navegación de cada pantalla deben **honrar** los flujos de
+negocio ya declarados en `docs/requirements/flujos/FLUJO-N.md` (Requerimientos
+los define primero, sin saber todavía la navegación técnica real —
+Arquitectura es quien la resuelve, pero sin contradecir la secuencia de
+negocio ya aprobada). QA va a usar `flujos/FLUJO-N.md` directamente para
+armar sus tests e2e, así que si la navegación real de las pantallas no
+coincide con el flujo declarado, es un hallazgo que se detecta acá, no
+recién cuando QA intente escribir un test que no puede recorrerse.
+
 ## Prototipo de UI: ubicación, rama y revisión asistida
 
 A diferencia del resto de esta fase (solo documentación), `ui_prototype`
@@ -376,8 +385,11 @@ Verificaciones de juicio (semánticas):
 10. Las ADR no se contradicen entre sí (ninguna decisión posterior invalida
     silenciosamente una anterior sin una nueva ADR que la reemplace
     explícitamente marcando la vieja como `retirada`).
+11. Todo `FLUJO-N.md` de Requerimientos es recorrible con la navegación real
+    declarada en las pantallas involucradas — cada paso del flujo tiene una
+    pantalla/API que lo resuelve, en el orden correcto.
 
-Las verificaciones 1–6 se ejecutan de forma determinística; las 7–10 y a–d
+Las verificaciones 1–6 se ejecutan de forma determinística; las 7–11 y a–d
 quedan a cargo del paso de auditoría semántica definido en el núcleo.
 
 ### Checklist de `integral_audit` (rol: Auditor Integral)
