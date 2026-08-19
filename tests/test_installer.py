@@ -103,7 +103,7 @@ def test_update_all_overwrites_untouched_files(tmp_path: Path):
     content_dir = tmp_path / "content"
     content_dir.mkdir()
     (content_dir / "requirements.md").write_text(_FIXTURE_PHASE, encoding="utf-8")
-    install_all(tmp_path, content_dir, adapters=[_MultiFileAdapter()])
+    original_manifest = install_all(tmp_path, content_dir, adapters=[_MultiFileAdapter()])
 
     (content_dir / "requirements.md").write_text(
         _FIXTURE_PHASE.replace("Hacé el PRD.", "Hacé el PRD actualizado."), encoding="utf-8"
@@ -113,12 +113,19 @@ def test_update_all_overwrites_untouched_files(tmp_path: Path):
     assert "Hacé el PRD actualizado." in (tmp_path / "requirements-prd.md").read_text(encoding="utf-8")
     assert warnings == []
 
+    # Verify manifest has updated hash for the file
+    original_prd_entry = next((f for f in original_manifest.files if "requirements-prd" in f.path), None)
+    updated_prd_entry = next((f for f in manifest.files if "requirements-prd" in f.path), None)
+    assert original_prd_entry is not None
+    assert updated_prd_entry is not None
+    assert original_prd_entry.hash != updated_prd_entry.hash
+
 
 def test_update_all_skips_user_edited_files(tmp_path: Path):
     content_dir = tmp_path / "content"
     content_dir.mkdir()
     (content_dir / "requirements.md").write_text(_FIXTURE_PHASE, encoding="utf-8")
-    install_all(tmp_path, content_dir, adapters=[_MultiFileAdapter()])
+    original_manifest = install_all(tmp_path, content_dir, adapters=[_MultiFileAdapter()])
 
     (tmp_path / "requirements-prd.md").write_text("edición manual del usuario", encoding="utf-8")
     (content_dir / "requirements.md").write_text(
@@ -128,3 +135,11 @@ def test_update_all_skips_user_edited_files(tmp_path: Path):
 
     assert (tmp_path / "requirements-prd.md").read_text(encoding="utf-8") == "edición manual del usuario"
     assert any("requirements-prd" in w for w in warnings)
+
+    # Verify manifest entry was preserved exactly (same hash and skill_id)
+    original_prd_entry = next((f for f in original_manifest.files if "requirements-prd" in f.path), None)
+    updated_prd_entry = next((f for f in manifest.files if "requirements-prd" in f.path), None)
+    assert original_prd_entry is not None
+    assert updated_prd_entry is not None
+    assert original_prd_entry.hash == updated_prd_entry.hash
+    assert original_prd_entry.skill_id == updated_prd_entry.skill_id

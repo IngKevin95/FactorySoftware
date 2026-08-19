@@ -12,15 +12,22 @@ from factorysoftware.state import Manifest, ManifestFile, compute_hash, read_man
 _VERSION = "0.1.0"
 
 
+def _group_by_path(
+    adapter: ProviderAdapter, project_root: Path, skill_ids: list[str]
+) -> dict[Path, list[str]]:
+    """Group skill IDs by their resolved target paths."""
+    paths = adapter.target_paths(project_root, skill_ids)
+    by_path: dict[Path, list[str]] = {}
+    for sid in skill_ids:
+        by_path.setdefault(paths[sid], []).append(sid)
+    return by_path
+
+
 def write_skills(
     project_root: Path, adapter: ProviderAdapter, skill_map: dict[str, str]
 ) -> list[ManifestFile]:
     skill_ids = list(skill_map.keys())
-    paths = adapter.target_paths(project_root, skill_ids)
-
-    by_path: dict[Path, list[str]] = {}
-    for sid in skill_ids:
-        by_path.setdefault(paths[sid], []).append(sid)
+    by_path = _group_by_path(adapter, project_root, skill_ids)
 
     files: list[ManifestFile] = []
     for path, sids in by_path.items():
@@ -75,10 +82,7 @@ def update_all(
         skill_map = build_skill_map(content)
         for adapter in adapters:
             skill_ids = list(skill_map.keys())
-            paths = adapter.target_paths(project_root, skill_ids)
-            by_path: dict[Path, list[str]] = {}
-            for sid in skill_ids:
-                by_path.setdefault(paths[sid], []).append(sid)
+            by_path = _group_by_path(adapter, project_root, skill_ids)
 
             for path, sids in by_path.items():
                 rel = str(path.relative_to(project_root))
