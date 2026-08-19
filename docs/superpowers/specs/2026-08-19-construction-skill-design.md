@@ -56,7 +56,10 @@ una carpeta propia para el código, solo para los planes de tareas.
 
 ### `plan/EPIC-N-plan.md`
 
-Frontmatter: `id` (`EPIC-N`), `estado`. Cuerpo: lista de tareas.
+Frontmatter: `id` (`EPIC-N`), `estado`, `depende_de_epicas` (lista de
+`EPIC-M`, vacía si es independiente — la escribe `plan_audit`, no
+`task_planning`; ver "Dependencias entre Épicas" más abajo). Cuerpo: lista
+de tareas.
 
 Cada tarea:
 - `id`: `TASK-N.M`
@@ -132,6 +135,36 @@ revisa su exit code de forma mecánica, dentro de `construction_audit`. Un
 agente que se equivoca o miente sobre el estado de los tests queda
 atrapado ahí, no llega al PR.
 
+## Dependencias entre Épicas: cuáles corren en paralelo, cuáles en serie
+
+`task_planning` arma cada plan de Épica viendo solo su propia Épica (por
+diseño, para acotar contexto — ver núcleo), así que no puede saber si choca
+con otra. La decisión de qué Épicas son independientes (corren en paralelo)
+y cuáles dependen de otra (corren en serie) la toma `plan_audit`, que sí ve
+todos los planes juntos:
+
+1. `plan_audit` detecta, para cada par de Épicas, si comparten una entidad
+   de `data-model.md` que una modifica y la otra necesita ya modificada, o
+   si una HU de una Épica depende explícitamente (en Requerimientos) de una
+   HU de otra. Si encuentra esto, escribe la dependencia en
+   `depende_de_epicas` del `EPIC-N-plan.md` correspondiente — no la deja
+   como hallazgo suelto, la deja declarada en el propio plan.
+2. Una Épica con `depende_de_epicas: []` es candidata a correr en paralelo
+   con cualquier otra igual de independiente.
+3. Una Épica con `depende_de_epicas` no vacía no puede arrancar su
+   construcción real hasta que **todas** las Épicas de las que depende
+   estén mergeadas a `develop` (no alcanza con que hayan pasado su
+   auditoría — el código tiene que estar integrado de verdad, porque la
+   Épica dependiente construye sobre datos/lógica reales, no sobre un
+   contrato). Esto lo verifica `branch_setup` de forma mecánica:
+   `git merge-base --is-ancestor feature/EPIC-M-... develop` para cada
+   dependencia.
+4. Si `branch_setup` de una Épica dependiente corre y la dependencia
+   todavía no está mergeada, aplica el mismo contrato de invocación manual
+   del núcleo: no se ejecuta, se informa qué Épica falta mergear, y en modo
+   automático esa Épica puntual queda en espera mientras las Épicas
+   independientes siguen su curso normal (no bloquea el pipeline entero).
+
 ## Pipeline de ejecución (usa el mecanismo transversal del núcleo)
 
 Cada paso es invocable manualmente (ej. "planificá solo la épica 3") con el
@@ -161,7 +194,9 @@ del núcleo (subagente paralelo si el proveedor lo soporta, serie si no).
   # ve TODOS los planes de épica juntos — necesario para detectar
   # conflictos entre épicas (ej. dos épicas tocando la misma entidad de
   # datos al mismo tiempo), algo que ninguna instancia aislada del paso
-  # anterior puede ver por sí sola
+  # anterior puede ver por sí sola. Escribe depende_de_epicas en cada
+  # EPIC-N-plan.md (ver "Dependencias entre Épicas" arriba) — esto es lo
+  # que decide más adelante qué Épicas corren en paralelo y cuáles en serie
 
 - id: plan_integral_audit [agéntico, rol: Auditor Integral]
   depende_de: [plan_audit]
@@ -175,8 +210,15 @@ del núcleo (subagente paralelo si el proveedor lo soporta, serie si no).
   depende_de: [plan_integral_audit]
   fan_out: "una instancia por Épica con plan aprobado"
   paralelizable: true
-  # crea feature/EPIC-N-<slug> desde architecture/ui-prototype si existe,
-  # si no desde develop
+  # crea feature/EPIC-N-<slug>. Si depende_de_epicas está vacío, arranca
+  # de inmediato (en paralelo con las demás Épicas independientes) desde
+  # architecture/ui-prototype si existe, si no desde develop. Si no está
+  # vacío, primero verifica mecánicamente (git merge-base --is-ancestor)
+  # que cada Épica dependiente ya esté mergeada a develop; si falta
+  # alguna, esta instancia queda en espera (contrato de invocación manual
+  # del núcleo) sin bloquear las demás Épicas independientes, y arranca
+  # desde el develop ya actualizado con la dependencia una vez que se
+  # cumple
 
 - id: task_execution [agéntico]
   depende_de: [branch_setup]
@@ -254,9 +296,10 @@ Estructurales (mecánicas):
 Semánticas:
 
 4. Ninguna tarea de una épica entra en conflicto de escritura concurrente
-   sobre la misma entidad/migración con una tarea de otra épica que corre en
-   paralelo (si lo detecta, se fuerza una dependencia explícita entre ambas
-   o se escala).
+   sobre la misma entidad/migración con una tarea de otra épica, ni una HU
+   de una épica depende (en Requerimientos) de una HU de otra sin que esa
+   relación quede reflejada en `depende_de_epicas` de ambos planes — no se
+   deja como hallazgo verbal, se escribe en el frontmatter.
 5. Granularidad de tareas razonable según Beck (Fewest Elements): ninguna
    tarea está fragmentada en abstracciones prematuras, ninguna tarea agrupa
    responsabilidades no relacionadas.
@@ -404,6 +447,17 @@ que leer el log completo.
   rol `seguridad` en el plan, fuerza la activación aunque el diff parezca
   menor. Si aun así se escapa un caso, queda registrado en el log con la
   decisión tomada, así es auditable después.
+- Dependencia circular entre Épicas (EPIC-1 depende de EPIC-2 que depende de
+  EPIC-1): `plan_audit` la detecta al escribir `depende_de_epicas` (mismo
+  chequeo estructural que ya existe para `depende_de` entre tareas, aplicado
+  a nivel de épica) y la reporta como hallazgo bloqueante — ninguna de las
+  dos puede arrancar `branch_setup` mientras la circularidad no se resuelva.
+- Dos Épicas independientes entre sí (`depende_de_epicas: []` ambas)
+  arrancan `branch_setup` en paralelo y, sin quererlo, sí terminan tocando
+  el mismo archivo por una coincidencia que `plan_audit` no detectó a nivel
+  de entidad de datos: se trata igual que cualquier conflicto real de
+  worktree — hallazgo retroactivo, se corrige la dependencia en el plan, no
+  se resuelve el conflicto a ciegas (ver caso ya cubierto arriba).
 
 ## Testing
 
@@ -421,6 +475,13 @@ mockean), fixtures de árbol de documentos en `tmp_path`:
   anidado/query nueva) un caso que confirma que activa la dimensión
   correspondiente, y un caso donde ninguna heurística aplica y
   `audit_security`/`audit_efficiency` quedan correctamente excluidas.
+- `test_epic_dependencies.py`: dos Épicas sin relación quedan con
+  `depende_de_epicas: []` y se marcan paralelizables; dos Épicas donde una
+  HU depende de otra entre épicas quedan con la dependencia escrita en
+  ambos planes; una dependencia circular entre Épicas se detecta como
+  hallazgo bloqueante; `branch_setup` de una Épica dependiente no arranca
+  si `git merge-base --is-ancestor` da falso para alguna de sus
+  dependencias (mockeado, no corre git real en este test).
 
 ## Preguntas abiertas para specs futuros
 
