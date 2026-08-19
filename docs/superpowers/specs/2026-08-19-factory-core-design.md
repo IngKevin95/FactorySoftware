@@ -157,6 +157,32 @@ sea lo más simple posible (un solo comando, cero preguntas en el caso común).
   inmediato, un adapter que escribe en el lugar equivocado es peor que no
   tener adapter.
 
+### Hook técnico de Git Flow (Claude Code y Antigravity, proveedores primarios)
+
+La regla de Git Flow (nunca commit/push directo a `main`/`develop`) no debe
+depender solo de que el agente la respete por instrucción — eso es
+convención, no garantía. En los dos proveedores primarios, que soportan un
+mecanismo de hook real, el `init` instala además un hook técnico que
+bloquea a nivel de herramienta cualquier intento de `git commit`/`git push`
+directo sobre `main`/`develop`:
+
+- **Claude Code**: hook `PreToolUse` sobre el tool `Bash`, registrado en
+  `.claude/settings.json` (o `.claude/hooks/`, según convención vigente al
+  implementar), que inspecciona el comando antes de ejecutarlo y lo rechaza
+  si es un commit/push directo a esas ramas.
+- **Antigravity**: mecanismo equivalente si la investigación de formato
+  (ver nota de arriba) confirma que existe un hook de pre-ejecución de
+  comandos; si no se confirma, este proveedor queda con enforcement solo por
+  convención (igual que los proveedores secundarios) hasta que se verifique.
+- **Proveedores secundarios** (Copilot, Codex, OpenCode): sin hook técnico
+  conocido en v1 — el Git Flow queda como instrucción del contenido de la
+  skill, no como bloqueo real. Se documenta la diferencia, no se finge
+  paridad que no existe.
+
+El archivo del hook se registra en `manifest.json` como cualquier otro
+archivo instalado, para que `update`/`uninstall` lo gestionen igual que el
+resto.
+
 ## Comandos de ciclo de vida
 
 - `factory init`
@@ -275,17 +301,43 @@ auditoría automática antes de pedirle al usuario que apruebe:
    - Si el proveedor no soporta subagentes, el mismo agente ejecuta un paso
      de autocrítica estructurada, explícitamente separado del paso de
      construcción (no se mezclan en el mismo razonamiento continuo).
-3. Si la auditoría encuentra hallazgos, se corrigen y se vuelve al paso 1.
-4. El loop tiene un tope de **3 iteraciones**. Si al llegar a la tercera
-   todavía hay hallazgos sin resolver, el agente detiene el loop y escala al
-   usuario mostrando qué quedó pendiente y por qué — nunca loopea indefinido
-   ni se "auto-aprueba" por cansancio del ciclo.
+3. Todo hallazgo lleva una **severidad**, no es binario:
+   - **Bloqueante**: impide el gate. Cuenta para el criterio de "hay
+     hallazgos, hace falta otra iteración" del paso 4.
+   - **Mayor**: significativo pero no frena el loop por sí solo — se
+     corrige si es razonable dentro de la misma iteración, pero si no se
+     corrige, queda como advertencia explícita mostrada al usuario en el
+     gate humano (no se esconde, pero tampoco bloquea la aprobación).
+   - **Menor**: informativo. Se loguea, aparece en el tablero
+     (`.factory/board.md`), nunca bloquea ni se muestra como advertencia
+     obligatoria en el gate.
+   - Un checklist de fase con **cero hallazgos de cualquier severidad** es
+     un resultado válido y esperado — el auditor no debe inventar hallazgos
+     menores para justificar haber corrido (mismo principio anti-alucinación
+     que el resto del sistema).
+4. Si la auditoría encuentra hallazgos Bloqueantes, se corrigen y se vuelve
+   al paso 1. El loop tiene un tope de **3 iteraciones** contando solo
+   hallazgos Bloqueantes. Si al llegar a la tercera todavía hay Bloqueantes
+   sin resolver, el agente detiene el loop y escala al usuario mostrando qué
+   quedó pendiente y por qué — nunca loopea indefinido ni se "auto-aprueba"
+   por cansancio del ciclo.
 5. Cada iteración del loop se registra vía
-   `factory log audit_iteration '{"phase": ..., "role": "auditor"|"auditor_integral", "iteration": N, "findings": [...]}'`
+   `factory log audit_iteration '{"phase": ..., "role": "auditor"|"auditor_integral", "iteration": N, "findings": [{"severity": "bloqueante"|"mayor"|"menor", "detalle": ...}]}'`
    (el campo `role` distingue si el hallazgo vino del Auditor de fase o del
    Auditor Integral), y el resultado final (aprobado / escalado) vía
-   `factory log phase_gate '{"phase": ..., "result": "approved"|"escalated", "iterations": N}'`.
-6. Pasar la auditoría automática es condición necesaria pero no suficiente
+   `factory log phase_gate '{"phase": ..., "result": "approved"|"escalated", "iterations": N, "hallazgos_mayores_pendientes": N}'`.
+6. **Evidencia mecánica, no autorreporte**: cuando un hallazgo se resuelve
+   apoyándose en evidencia mecánica (ej. "los tests pasan", "el build
+   compila"), esa evidencia debe quedar atada al commit real, no al reporte
+   del agente. El comando que genera la evidencia loguea también
+   `git_head` (`git rev-parse HEAD` en el momento de generarla) vía
+   `factory log audit_evidence '{"phase": ..., "step": ..., "evidence_type": ..., "git_head": "<hash>", "result": "pass"|"fail"}'`.
+   Antes de aceptar una evidencia previamente logueada como válida para
+   cerrar un hallazgo, se verifica que `git_head` coincida con el HEAD
+   actual — una evidencia de un commit anterior no cuenta, hay que
+   regenerarla. Esto evita que un agente cite un "los tests pasan" ya
+   desactualizado o fabricado.
+7. Pasar la auditoría automática es condición necesaria pero no suficiente
    para avanzar de fase — el gate de aprobación humana explícita (definido
    por cada spec de fase) sigue aplicando después de que el loop cierra
    limpio.
