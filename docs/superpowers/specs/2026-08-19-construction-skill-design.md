@@ -165,13 +165,29 @@ todos los planes juntos:
    automático esa Épica puntual queda en espera mientras las Épicas
    independientes siguen su curso normal (no bloquea el pipeline entero).
 
-## Pipeline de ejecución (usa el mecanismo transversal del núcleo)
+## Unidad principal de fan-out: la Épica
 
-Cada paso es invocable manualmente (ej. "planificá solo la épica 3") con el
-chequeo de prerequisitos del núcleo — pedir `task_execution` sin
-`branch_setup` completo no ejecuta nada, informa qué falta y sugiere
-correrlo primero — además del modo automático que encadena todo hasta
-`pr_gate`.
+Construcción declara la **Épica** como su unidad principal (mecanismo del
+núcleo). Esto habilita los 3 modos de invocación:
+
+1. **Manual**: un paso suelto (ej. "planificá solo la épica 3") con el
+   chequeo de prerequisitos del núcleo — pedir `task_execution` sin
+   `branch_setup` completo no ejecuta nada, informa qué falta y sugiere
+   correrlo primero.
+2. **Automático por unidad**: "construí la épica 3 completa" — encadena
+   `task_planning`→...→`pr_gate` acotado solo a `EPIC-3` (los pasos con
+   fan-out solo generan/procesan la instancia de esa épica; `plan_audit`
+   sigue viendo todos los planes para detectar conflictos, pero solo
+   bloquea/reporta lo relevante a `EPIC-3`).
+3. **Automático completo**: "construí todo" — encadena el pipeline para
+   todas las Épicas no retiradas.
+
+Además, el skill `construction-auditor` (Auditor standalone del núcleo)
+permite "auditá la épica 3" (corre `construction_audit` +
+`construction_integral_audit` sobre lo que ya está construido, sin volver a
+plan_audit/task_execution) o "hacé una auditoría general de construcción"
+(mismo par de auditores, pero sobre todas las Épicas ya integradas a
+`develop` — útil para un chequeo de salud sin haber tocado nada nuevo).
 
 Los pasos marcados "mecánico" son determinísticos (comandos de git/test
 runner, sin necesidad de juicio de un agente) y se ejecutan como tool calls
