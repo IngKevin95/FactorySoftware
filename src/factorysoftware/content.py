@@ -21,10 +21,10 @@ class PhaseContent(BaseModel):
     id: str
     unidad_principal: str | None = None
     flujo_skill_name: str = "flujo"
-    steps: list[StepDecl]
-    preamble: str
-    sections: dict[str, str]
-
+    steps: list[StepDecl] = []
+    preamble: str = ""
+    sections: dict[str, str] = {}
+    is_standalone: bool = False
 
 def parse_content(path: Path) -> PhaseContent:
     text = path.read_text(encoding="utf-8")
@@ -43,6 +43,15 @@ def parse_content(path: Path) -> PhaseContent:
     if not isinstance(frontmatter, dict):
         raise ValueError(f"{path}: el frontmatter YAML debe ser un mapeo de claves y valores.")
 
+    # Si es standalone (no tiene steps ni id de fase)
+    if "steps" not in frontmatter:
+        skill_id = frontmatter.get("name", path.stem)
+        return PhaseContent(
+            id=skill_id,
+            is_standalone=True,
+            preamble=body.strip()
+        )
+
     steps = [StepDecl(**s) for s in frontmatter["steps"]]
 
     matches = list(_SECTION_RE.finditer(body))
@@ -55,10 +64,15 @@ def parse_content(path: Path) -> PhaseContent:
 
     missing = [s.id for s in steps if s.id not in sections]
     if missing:
-        raise ValueError(
-            f"{path}: los pasos declarados en el frontmatter no tienen sección "
-            f"'## Paso: <id>' en el cuerpo: {', '.join(missing)}"
-        )
+        # Fallback para archivos de un solo paso que omiten el "## Paso:"
+        if len(steps) == 1 and not sections:
+            sections[steps[0].id] = body.strip()
+            preamble = ""
+        else:
+            raise ValueError(
+                f"{path}: los pasos declarados en el frontmatter no tienen secciA3n "
+                f"'## Paso: <id>' en el cuerpo: {', '.join(missing)}"
+            )
 
     return PhaseContent(
         id=frontmatter["id"],

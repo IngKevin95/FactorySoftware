@@ -12,6 +12,10 @@ def _joined_sections(content: PhaseContent) -> str:
 def build_skill_map(content: PhaseContent) -> dict[str, str]:
     skills: dict[str, str] = {}
 
+    if content.is_standalone:
+        skills[content.id] = content.preamble
+        return skills
+
     for step in content.steps:
         skill_id = f"{content.id}-{step.id}"
         skills[skill_id] = f"{content.preamble}\n\n{content.sections[step.id]}\n"
