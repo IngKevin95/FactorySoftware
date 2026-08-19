@@ -80,7 +80,15 @@ para no solaparse en alcance, por eso corre como paso único (no fan-out).
   fan_out: null
   paralelizable: false
   # una sola pasada que redacta TODAS las épicas juntas, así el agente
-  # puede repartir el alcance del PRD entre ellas sin solapes
+  # puede repartir el alcance del PRD entre ellas sin solapes. Antes de
+  # cerrar el paso, el Asesor revisa el set de épicas resultante y sugiere
+  # explícitamente capacidades transversales típicas de una aplicación
+  # completa que no estén cubiertas (autenticación/login, gestión de
+  # perfil, cambio de contraseña, foto de perfil, recuperación de cuenta,
+  # y cualquier otra que la naturaleza del proyecto sugiera) — nunca las
+  # agrega en silencio. Cada sugerencia se presenta al usuario (vía
+  # AskUserQuestion o equivalente del proveedor) y solo se crea una Épica/HU
+  # nueva para las que el usuario confirma explícitamente.
 
 - id: hu_por_epica
   depende_de: [epics]
@@ -175,31 +183,37 @@ Verificaciones estructurales (mecánicas, no requieren juicio):
 4. Toda HU tiene al menos un criterio de aceptación Given/When/Then.
 5. `traceability.md` tiene exactamente una fila por HU no retirada, sin
    filas huérfanas.
+6. Existe al menos un evento `advisor_note` de categoría
+   `sugerencia_transversal` logueado antes del cierre del paso `epics` — el
+   Asesor tiene que haber revisado y sugerido capacidades transversales
+   típicas, aunque el usuario las haya rechazado todas; lo que no puede
+   faltar es que la revisión haya ocurrido.
 
 Verificaciones de juicio (requieren lectura semántica del agente auditor):
 
-6. Cada Épica tiene una meta de negocio trazable a un objetivo explícito del
+7. Cada Épica tiene una meta de negocio trazable a un objetivo explícito del
    PRD (sin épicas "flotantes" fuera del alcance declarado).
-7. No hay contradicciones entre criterios de aceptación de HU distintas
+8. No hay contradicciones entre criterios de aceptación de HU distintas
    dentro de la misma épica (ej. dos reglas de negocio incompatibles sobre
    el mismo campo/entidad).
-8. El alcance declarado en el PRD no tiene huecos evidentes respecto a las
+9. El alcance declarado en el PRD no tiene huecos evidentes respecto a las
    épicas creadas (cobertura), ni las épicas se salen del alcance declarado
    (scope creep).
 
-Las verificaciones 1–5 se ejecutan como chequeo determinístico (ver abajo);
-las 6–8 quedan a cargo del paso de auditoría semántica (agente separado o
-autocrítica, según lo defina el núcleo).
+Las verificaciones 1–6 se ejecutan como chequeo determinístico (ver abajo);
+las 7–9 (renumeradas: antes 6–8) quedan a cargo del paso de auditoría
+semántica (agente separado o autocrítica, según lo defina el núcleo).
 
 ## Extensión del CLI del núcleo
 
 Se agrega un subcomando `factory validate requirements` (extiende el CLI
 definido en el spec del núcleo) que corre las verificaciones estructurales
-1–5 de forma determinística sobre `docs/requirements/` y devuelve una lista
-de problemas encontrados (vacía si todo bien). La skill instruye al agente a
-correr este comando como primer paso de cada iteración del loop de
-auditoría, antes de la revisión semántica — más barato y confiable que
-pedirle al LLM que verifique referencias cruzadas a mano.
+1–6 de forma determinística sobre `docs/requirements/` y `.factory/log.jsonl`
+(para la verificación 6) y devuelve una lista de problemas encontrados
+(vacía si todo bien). La skill instruye al agente a correr este comando
+como primer paso de cada iteración del loop de auditoría, antes de la
+revisión semántica — más barato y confiable que pedirle al LLM que
+verifique referencias cruzadas a mano.
 
 ## Manejo de errores / casos borde
 
@@ -217,9 +231,10 @@ pedirle al LLM que verifique referencias cruzadas a mano.
 pytest, cero IO externo, fixtures de árbol de documentos en `tmp_path`:
 
 - `test_validate_requirements.py`: casos positivos (set completo y
-  coherente) y cada caso negativo de la checklist estructural 1–5 por
+  coherente) y cada caso negativo de la checklist estructural 1–6 por
   separado (HU huérfana, dependencia inexistente, referencia circular, fila
-  de trazabilidad faltante/huérfana, HU sin criterios de aceptación).
+  de trazabilidad faltante/huérfana, HU sin criterios de aceptación, cierre
+  de `epics` sin evento `advisor_note` de sugerencia transversal).
 
 ## Preguntas abiertas para specs futuros
 
