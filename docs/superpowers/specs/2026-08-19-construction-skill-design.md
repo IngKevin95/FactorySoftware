@@ -168,26 +168,30 @@ todos los planes juntos:
 ## Unidad principal de fan-out: la Épica
 
 Construcción declara la **Épica** como su unidad principal (mecanismo del
-núcleo). Esto habilita los 3 modos de invocación:
+núcleo). Expone los 4 tipos de skill, con nombres concretos:
 
-1. **Manual**: un paso suelto (ej. "planificá solo la épica 3") con el
-   chequeo de prerequisitos del núcleo — pedir `task_execution` sin
-   `branch_setup` completo no ejecuta nada, informa qué falta y sugiere
-   correrlo primero.
-2. **Automático por unidad**: "construí la épica 3 completa" — encadena
-   `task_planning`→...→`pr_gate` acotado solo a `EPIC-3` (los pasos con
-   fan-out solo generan/procesan la instancia de esa épica; `plan_audit`
-   sigue viendo todos los planes para detectar conflictos, pero solo
-   bloquea/reporta lo relevante a `EPIC-3`).
-3. **Automático completo**: "construí todo" — encadena el pipeline para
-   todas las Épicas no retiradas.
-
-Además, el skill `construction-auditor` (Auditor standalone del núcleo)
-permite "auditá la épica 3" (corre `construction_audit` +
-`construction_integral_audit` sobre lo que ya está construido, sin volver a
-plan_audit/task_execution) o "hacé una auditoría general de construcción"
-(mismo par de auditores, pero sobre todas las Épicas ya integradas a
-`develop` — útil para un chequeo de salud sin haber tocado nada nuevo).
+1. **`construction-<step_id>`** (manual, ej. `construction-task_planning`):
+   un paso suelto, con el chequeo de prerequisitos del núcleo — pedir
+   `construction-task_execution` sin `construction-branch_setup` completo
+   no ejecuta nada, informa qué falta y sugiere correrlo primero.
+2. **`construction-slide`** (automático por unidad): recibe el id de la
+   Épica como argumento al invocarlo — "construí el slide de la épica 3"
+   invoca `construction-slide` con `EPIC-3`. Encadena
+   `task_planning`→...→`pr_gate` acotado solo a esa Épica (los pasos con
+   fan-out solo generan/procesan su instancia; `plan_audit` sigue viendo
+   todos los planes para detectar conflictos entre Épicas, pero solo
+   bloquea/reporta lo relevante a la pedida). Un solo skill, no un skill
+   por Épica — el número de Épicas no está fijo de antemano.
+3. **`construction-e2e`** (automático completo — nombre específico de esta
+   fase en vez de `construction-flujo`, ver núcleo): "construí todo" —
+   encadena el pipeline completo para todas las Épicas no retiradas, arma
+   la aplicación de punta a punta.
+4. **`construction-auditor`** (Auditor standalone): recibe una Épica como
+   argumento ("auditá la épica 3" → corre `construction_audit` +
+   `construction_integral_audit` sobre lo que ya está construido, sin
+   volver a `plan_audit`/`task_execution`) o ningún argumento / "todo"
+   ("auditoría general de construcción" → mismo par de auditores sobre
+   todas las Épicas ya integradas a `develop`).
 
 Los pasos marcados "mecánico" son determinísticos (comandos de git/test
 runner, sin necesidad de juicio de un agente) y se ejecutan como tool calls
