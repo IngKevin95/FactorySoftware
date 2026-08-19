@@ -78,10 +78,33 @@ cubiertas vs total), resultado de verificación de cada NFR (medido vs
 objetivo), resumen de hallazgos de seguridad por severidad, y qué flujos de
 negocio tienen e2e real corriendo.
 
+## Unidad principal de fan-out: la Épica
+
+QA declara la **Épica** como su unidad principal (mismo mecanismo del
+núcleo que Construcción), aunque su pipeline no hace fan-out nativo por
+Épica sino por `TEST-N` — el alcance por unidad se resuelve filtrando qué
+`TEST-N` corresponden a esa Épica:
+
+1. **Manual**: un paso suelto, con el chequeo de prerequisitos del núcleo.
+2. **Automático por unidad**: "corré QA solo de lo que tocó la épica 3" —
+   `coverage_gap_analysis` filtra a HU/NFR de `EPIC-3` y a los `FLUJO-N`
+   **completamente** contenidos en esa Épica (un flujo que cruza a otra
+   Épica queda fuera de este alcance, solo se cubre en modo completo). Crea
+   su propia rama `feature/qa-coverage-epic-3-<slug>` y su propio PR,
+   independiente de la corrida general.
+3. **Automático completo**: "corré QA de todo" — sin filtro, como está
+   descrito en el resto de este spec, rama `feature/qa-coverage-<slug>`.
+
+El skill `qa-auditor` (Auditor standalone del núcleo) permite "auditá QA de
+la épica 3" (corre `qa_audit` + `qa_integral_audit` sobre lo que ya está
+cubierto para esa Épica, sin volver a escribir tests) o "auditoría general
+de QA" (mismo par de auditores sobre todo lo cubierto a la fecha).
+
 ## Pipeline de ejecución (usa el mecanismo transversal del núcleo)
 
 Cada paso es invocable manualmente con el chequeo de prerequisitos del
-núcleo, además del modo automático que encadena todo hasta `pr_gate`.
+núcleo, además del modo automático (por unidad o completo, ver arriba) que
+encadena todo hasta `pr_gate`.
 
 ```
 - id: coverage_gap_analysis [agéntico]
