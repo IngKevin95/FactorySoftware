@@ -88,12 +88,21 @@ publicación de contenido, etc.).
 
 ## Pipeline de ejecución (usa el mecanismo transversal del núcleo)
 
-Sigue el formato de declaración de pasos definido en el spec del núcleo, y
-por lo tanto cada paso es invocable manualmente (ej. "generá solo el PRD",
-"armá las HU de EPIC-2") con el chequeo de prerequisitos del núcleo — pedir
-`hu_por_epica` sin que `epics` esté completo no ejecuta nada, informa qué
-falta y sugiere correrlo primero — además del modo automático que encadena
-todo hasta `audit_loop`. La
+Sigue el formato de declaración de pasos definido en el spec del núcleo.
+Requerimientos no declara unidad principal de fan-out (no tiene un
+equivalente claro a la Épica de Construcción/QA para ese propósito), así
+que solo expone 2 de los 4 tipos de skill del núcleo:
+
+- `requirements-<step_id>` (ej. `requirements-prd`, `requirements-hu_por_epica`)
+  — modo manual, con el chequeo de prerequisitos del núcleo: pedir
+  `requirements-hu_por_epica` sin que `epics` esté completo no ejecuta
+  nada, informa qué falta y sugiere correrlo primero.
+- `requirements-flujo` — modo completo, encadena todo el paso a paso desde
+  `prd` hasta `audit_loop` sin pararse a esperar confirmación entre pasos
+  intermedios.
+
+Sin `requirements-slide` ni `requirements-auditor` (esos dos tipos de skill
+son exclusivos de fases con unidad principal). La
 generación de HU por épica es el único paso con fan-out paralelizable: cada
 épica ya tiene su meta de negocio fijada por el paso anterior, así que
 redactar las HU de una épica no requiere ver las HU de las demás — candidato
