@@ -30,6 +30,7 @@ escala, no se reinterpreta la HU en silencio.
 
 ```
 docs/architecture/
+  constraints.md
   adrs/
     ADR-1.md
     ADR-2.md
@@ -70,17 +71,70 @@ sin herramienta externa, se renderiza nativo en GitHub/GitLab/VS
 Code/Artifacts. Ningún adapter de proveedor necesita nada especial para
 producirlo, es contenido markdown normal.
 
-## Contenido de cada documento
+## Ninguna decisión sin validar y contrastar contra teoría
+
+Esta fase es donde más pesa el rol de asesor/auditor definido en el núcleo:
+**el agente no tiene permitido tomar ninguna decisión técnica (stack,
+artefactos y método de despliegue, patrón de comunicación, elección de base
+de datos, etc.) sin antes contrastarla explícitamente contra teoría/práctica
+establecida y contra las restricciones del proyecto.** No alcanza con
+documentar pros/contras de memoria — cada alternativa considerada necesita
+una justificación de por qué la teoría/práctica de la industria la favorece
+o la desaconseja para este caso puntual, no una opinión genérica.
+
+### `constraints.md`
+
+Documento único (lista corta, no amerita un archivo por ítem), completado al
+inicio de la fase, antes de cualquier ADR:
+
+- **Restricciones duras**: no negociables — cumplimiento normativo,
+  infraestructura ya existente que hay que respetar, presupuesto,
+  tecnologías mandatadas explícitamente por el usuario. Ninguna ADR puede
+  proponer algo que las viole; si el agente detecta que una restricción dura
+  es técnicamente inviable en conjunto con otra, es un hallazgo bloqueante
+  que se escala, no se resuelve solo.
+- **Restricciones blandas**: preferencias — se pueden pisar en una ADR
+  siempre que la justificación teórica sea explícita y quede registrada por
+  qué se decidió no seguirlas.
+
+Toda ADR referencia qué restricciones de `constraints.md` aplicó.
 
 ### `adrs/ADR-N.md`
 
 Frontmatter: `id`, `estado` (propuesta/aceptada/retirada), `afecta_a`
-(opcional, ids de otras ADR relacionadas). Cuerpo, formato ADR estándar:
-contexto, decisión, alternativas consideradas con pros/contras de cada una,
-**recomendación honesta del asesor** (puede diferir de lo que el usuario
-pidió inicialmente — se documenta el desacuerdo igual que en el núcleo),
-consecuencias. La primera ADR de toda fase es siempre la elección de stack
-tecnológico, porque todo lo demás depende de ella.
+(opcional, ids de otras ADR relacionadas), `restricciones_aplicadas` (ids/
+nombres de restricciones de `constraints.md`). Cuerpo, formato ADR extendido
+— cada sección es obligatoria, no se puede omitir por "obvia":
+
+1. **Contexto**: qué problema técnico se resuelve.
+2. **Restricciones aplicables**: cuáles de `constraints.md` entran en juego.
+3. **Alternativas consideradas**: mínimo 2 opciones reales (nunca una sola
+   opción "porque sí"). Por cada una: **fundamento teórico** — qué práctica,
+   patrón, benchmark o consenso de la industria la respalda o la
+   desaconseja para este contexto puntual (ej. "CQRS se recomienda cuando
+   las cargas de lectura/escritura son muy asimétricas — acá HU-3.x indica
+   ese patrón de uso, por eso se prefiere sobre CRUD simple"), no una
+   afirmación sin sustento.
+4. **Decisión**: cuál se elige.
+5. **Recomendación honesta del asesor**: si la decisión del usuario difiere
+   de lo que la teoría sugeriría para este contexto, se documenta el
+   desacuerdo explícitamente (mismo mecanismo del núcleo: `advisor_note` o
+   `advisor_block` según la categoría de riesgo).
+6. **Consecuencias**: qué se gana, qué se sacrifica, qué queda más difícil
+   de cambiar después.
+
+Las ADR fundacionales, obligatorias en toda fase antes de que cualquier otro
+paso del pipeline pueda avanzar, son como mínimo:
+- **Stack tecnológico** — porque todo lo demás depende de ella.
+- **Artefactos y método de despliegue** (ej. imagen de contenedor vs binario
+  vs paquete serverless; pipeline de CI/CD; entorno destino) — porque
+  `architecture-overview.md` necesita saber esto para el diagrama de
+  contenedores, y no es un detalle que se pueda dejar implícito o para
+  después.
+
+Cualquier otra decisión técnica que surja de las HU (ej. elección de motor
+de base de datos, patrón de mensajería) se documenta como ADR adicional
+siguiendo el mismo formato de 6 secciones.
 
 ### `architecture-overview.md`
 
@@ -116,16 +170,33 @@ Construcción necesita para armar el componente real.
 ## Pipeline de ejecución (usa el mecanismo transversal del núcleo)
 
 ```
-- id: adrs
+- id: constraints
   depende_de: []
   fan_out: null
   paralelizable: false
-  # una sola pasada: la elección de stack y las decisiones técnicas
-  # derivadas deben ser mutuamente coherentes, no se pueden decidir
-  # en aislamiento
+  # constraints.md se completa antes que cualquier ADR — toda decisión
+  # posterior debe poder referenciarlo
+
+- id: adrs
+  depende_de: [constraints]
+  fan_out: null
+  paralelizable: false
+  # una sola pasada: la elección de stack, el método de despliegue y las
+  # decisiones técnicas derivadas deben ser mutuamente coherentes, no se
+  # pueden decidir en aislamiento
+
+- id: adrs_audit
+  depende_de: [adrs]
+  fan_out: null
+  paralelizable: false
+  # checkpoint temprano obligatorio, mismo mecanismo de loop del núcleo
+  # (hasta 3 iteraciones) pero aplicado SOLO a las ADR, antes de dejar que
+  # overview/data_model/apis/screens construyan sobre una decisión mala:
+  # verifica que cada ADR tenga fundamento teórico real (no una opinión sin
+  # sustento) y que ninguna restricción dura de constraints.md fue violada
 
 - id: overview
-  depende_de: [adrs]
+  depende_de: [adrs_audit]
   fan_out: null
   paralelizable: false
 
@@ -176,6 +247,27 @@ cierre limpio.
 
 ## Checklist del auditor
 
+### Checklist de `adrs_audit` (checkpoint temprano, antes de `overview`)
+
+Todas de juicio (no hay atajo mecánico para evaluar si un fundamento teórico
+es real):
+
+a. Cada ADR tiene al menos 2 alternativas reales consideradas, cada una con
+   fundamento teórico explícito (práctica, patrón, benchmark o consenso de
+   industria citado) — una alternativa sin fundamento, o un fundamento
+   genérico tipo "es más rápido" sin contexto, es hallazgo bloqueante.
+b. Ninguna decisión viola una restricción dura de `constraints.md`. Si una
+   ADR pisa una restricción blanda, la justificación teórica de por qué
+   está explícita.
+c. Existen como mínimo las ADR fundacionales obligatorias: stack tecnológico
+   y artefactos/método de despliegue.
+d. Si la decisión final difiere de lo que el fundamento teórico sugeriría
+   como mejor opción para el contexto, la sección "Recomendación honesta del
+   asesor" documenta ese desacuerdo — no puede quedar una ADR donde el
+   agente decidió en contra de la teoría sin decirlo.
+
+### Checklist del cierre de fase (después de `screens`, antes del gate)
+
 Verificaciones estructurales (mecánicas):
 
 1. Toda HU con anexo funcional de endpoint (Requerimientos) tiene al menos
@@ -204,8 +296,8 @@ Verificaciones de juicio (semánticas):
    silenciosamente una anterior sin una nueva ADR que la reemplace
    explícitamente marcando la vieja como `retirada`).
 
-Las verificaciones 1–5 se ejecutan de forma determinística; las 6–8 quedan a
-cargo del paso de auditoría semántica definido en el núcleo.
+Las verificaciones 1–5 se ejecutan de forma determinística; las 6–8 y a–d
+quedan a cargo del paso de auditoría semántica definido en el núcleo.
 
 ## Extensión del CLI del núcleo
 
@@ -226,6 +318,12 @@ lista de problemas (vacía si todo bien). Mismo patrón que
 - ADR que reemplaza una decisión anterior sin marcar la vieja como retirada:
   hallazgo bloqueante de la verificación 8, no queda como ambigüedad
   silenciosa en el historial de decisiones.
+- ADR con una sola alternativa "obvia" y sin fundamento teórico citado: el
+  checkpoint `adrs_audit` la rechaza antes de que `overview` llegue a
+  construir sobre ella — no se descubre recién al final de la fase.
+- Restricción dura violada por una ADR: hallazgo bloqueante del checkpoint
+  `adrs_audit` (verificación b), se escala antes de avanzar, nunca se
+  documenta como "excepción aceptada" sin decisión explícita del usuario.
 
 ## Testing
 
