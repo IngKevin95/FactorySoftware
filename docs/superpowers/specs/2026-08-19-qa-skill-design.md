@@ -83,22 +83,25 @@ negocio tienen e2e real corriendo.
 QA declara la **Épica** como su unidad principal (mismo mecanismo del
 núcleo que Construcción), aunque su pipeline no hace fan-out nativo por
 Épica sino por `TEST-N` — el alcance por unidad se resuelve filtrando qué
-`TEST-N` corresponden a esa Épica:
+`TEST-N` corresponden a esa Épica. Expone los 4 tipos de skill:
 
-1. **Manual**: un paso suelto, con el chequeo de prerequisitos del núcleo.
-2. **Automático por unidad**: "corré QA solo de lo que tocó la épica 3" —
-   `coverage_gap_analysis` filtra a HU/NFR de `EPIC-3` y a los `FLUJO-N`
-   **completamente** contenidos en esa Épica (un flujo que cruza a otra
-   Épica queda fuera de este alcance, solo se cubre en modo completo). Crea
-   su propia rama `feature/qa-coverage-epic-3-<slug>` y su propio PR,
+1. **`qa-<step_id>`** (manual, ej. `qa-e2e_tests`): un paso suelto, con el
+   chequeo de prerequisitos del núcleo.
+2. **`qa-slide`** (automático por unidad): recibe el id de la Épica como
+   argumento — "corré QA solo de lo que tocó la épica 3" invoca `qa-slide`
+   con `EPIC-3`. `coverage_gap_analysis` filtra a HU/NFR de esa Épica y a
+   los `FLUJO-N` **completamente** contenidos en ella (un flujo que cruza a
+   otra Épica queda fuera de este alcance, solo se cubre en modo completo).
+   Crea su propia rama `feature/qa-coverage-epic-3-<slug>` y su propio PR,
    independiente de la corrida general.
-3. **Automático completo**: "corré QA de todo" — sin filtro, como está
-   descrito en el resto de este spec, rama `feature/qa-coverage-<slug>`.
-
-El skill `qa-auditor` (Auditor standalone del núcleo) permite "auditá QA de
-la épica 3" (corre `qa_audit` + `qa_integral_audit` sobre lo que ya está
-cubierto para esa Épica, sin volver a escribir tests) o "auditoría general
-de QA" (mismo par de auditores sobre todo lo cubierto a la fecha).
+3. **`qa-flujo`** (automático completo): "corré QA de todo" — sin filtro,
+   como está descrito en el resto de este spec, rama
+   `feature/qa-coverage-<slug>`.
+4. **`qa-auditor`** (Auditor standalone): recibe una Épica como argumento
+   ("auditá QA de la épica 3" → corre `qa_audit` + `qa_integral_audit`
+   sobre lo que ya está cubierto para esa Épica, sin volver a escribir
+   tests) o ningún argumento / "todo" ("auditoría general de QA" → mismo
+   par de auditores sobre todo lo cubierto a la fecha).
 
 ## Pipeline de ejecución (usa el mecanismo transversal del núcleo)
 
