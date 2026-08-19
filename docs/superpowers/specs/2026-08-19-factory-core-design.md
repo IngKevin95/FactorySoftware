@@ -214,6 +214,38 @@ antes de continuar, y a loguear el desacuerdo vía
 Los desacuerdos no críticos se loguean vía `factory log advisor_note` pero no
 bloquean.
 
+## Loop auditor-constructor (transversal, aplica a toda fase con gate de
+aprobación)
+
+Cada fase que termina en un gate de aprobación humana (ver cada spec de
+contenido de fase para su checklist específico) pasa primero por un ciclo de
+auditoría automática antes de pedirle al usuario que apruebe:
+
+1. El agente constructor produce/actualiza los artefactos de la fase.
+2. Se ejecuta una revisión de auditoría contra el checklist de esa fase
+   (coherencia interna, cobertura, ausencia de gaps respecto a la fase
+   anterior). Mecanismo de la revisión, en orden de preferencia:
+   - Si el proveedor soporta despachar un agente/rol independiente (ej. el
+     `Agent` tool de Claude Code con un tipo de agente revisor), se despacha
+     ese agente separado para la auditoría — más independencia, no comparte
+     el mismo hilo de razonamiento que produjo el artefacto.
+   - Si el proveedor no soporta subagentes, el mismo agente ejecuta un paso
+     de autocrítica estructurada, explícitamente separado del paso de
+     construcción (no se mezclan en el mismo razonamiento continuo).
+3. Si la auditoría encuentra hallazgos, se corrigen y se vuelve al paso 1.
+4. El loop tiene un tope de **3 iteraciones**. Si al llegar a la tercera
+   todavía hay hallazgos sin resolver, el agente detiene el loop y escala al
+   usuario mostrando qué quedó pendiente y por qué — nunca loopea indefinido
+   ni se "auto-aprueba" por cansancio del ciclo.
+5. Cada iteración del loop se registra vía
+   `factory log audit_iteration '{"phase": ..., "iteration": N, "findings": [...]}'`,
+   y el resultado final (aprobado / escalado) vía
+   `factory log phase_gate '{"phase": ..., "result": "approved"|"escalated", "iterations": N}'`.
+6. Pasar la auditoría automática es condición necesaria pero no suficiente
+   para avanzar de fase — el gate de aprobación humana explícita (definido
+   por cada spec de fase) sigue aplicando después de que el loop cierra
+   limpio.
+
 ## Manejo de errores
 
 - `update`/`uninstall` nunca borran ni sobreescriben un archivo cuyo hash no
