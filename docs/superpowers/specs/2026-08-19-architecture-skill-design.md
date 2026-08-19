@@ -224,10 +224,18 @@ Esto ajusta `branch_setup` en el spec de Construcción (ver ese spec).
 
 ## Pipeline de ejecución (usa el mecanismo transversal del núcleo)
 
-Cada paso es invocable manualmente (ej. "corré solo `apis`") con el chequeo
-de prerequisitos del núcleo — pedir `apis` sin que `adrs_audit` haya cerrado
-no ejecuta nada, informa qué falta y sugiere correrlo primero — además del
-modo automático que encadena todo hasta `integral_audit` y el gate.
+Arquitectura, igual que Requerimientos, no declara unidad principal de
+fan-out (sus fan-out son por HU/pantalla, no por una unidad organizadora
+como la Épica) — expone 2 de los 4 tipos de skill del núcleo:
+
+- `architecture-<step_id>` (ej. `architecture-apis`) — modo manual, con el
+  chequeo de prerequisitos del núcleo: pedir `architecture-apis` sin que
+  `adrs_audit` haya cerrado no ejecuta nada, informa qué falta y sugiere
+  correrlo primero.
+- `architecture-flujo` — modo completo, encadena todo desde `constraints`
+  hasta `integral_audit` y el gate.
+
+Sin `architecture-slide` ni `architecture-auditor`.
 
 ```
 - id: constraints
