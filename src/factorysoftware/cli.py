@@ -154,11 +154,12 @@ def cmd_audit_triage(args: argparse.Namespace) -> int:
     import subprocess
     project_root = Path(args.project_root)
     epic = args.epic
+    base = args.base
     plan_path = project_root / "docs" / "construction" / "plan" / f"{epic}.md"
     plan_text = plan_path.read_text(encoding="utf-8") if plan_path.exists() else ""
     try:
         diff_text = subprocess.run(
-            ["git", "diff"], capture_output=True, text=True, cwd=project_root
+            ["git", "diff", f"{base}...HEAD"], capture_output=True, text=True, cwd=project_root
         ).stdout
     except FileNotFoundError:
         diff_text = ""
@@ -198,6 +199,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("audit-triage")
     p.add_argument("--epic", required=True)
+    p.add_argument("--base", default="develop", help="Base branch for git diff")
     p.add_argument("--project-root", default=".")
     p.set_defaults(func=cmd_audit_triage)
 

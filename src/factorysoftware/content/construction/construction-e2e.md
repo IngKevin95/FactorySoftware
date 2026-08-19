@@ -6,4 +6,4 @@ description: E2E orchestration.
 
 # E2E Orchestrator
 
-Guidelines for E2E orchestration.
+Orquestador End-to-End. Ejecuta el pipeline completo de Construcción para TODAS las épicas no retiradas.

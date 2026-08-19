@@ -6,4 +6,5 @@ description: Slide orchestration.
 
 # Slide Orchestrator
 
-Guidelines for slide orchestration.
+Orquestador de ejecución para una ÚNICA épica.
+Recibe `EPIC-N` como argumento y ejecuta todos los pasos desde `task_planning` hasta `pr_gate` acotado a esa épica.

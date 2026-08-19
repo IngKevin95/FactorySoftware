@@ -1,9 +1,13 @@
 ---
-id: construction-plan_audit
-title: Plan Audit
-description: Auditing construction plans.
+id: construction
+steps:
+  - id: plan_audit
+    depende_de: [task_planning]
 ---
 
-# Plan Audit
+# Skill: construction-plan_audit
 
-Guidelines for auditing plans.
+Audita TODOS los planes de épica juntos.
+- **Dependencias entre épicas:** Detecta si comparten entidades de datos o tienen dependencias directas en HU. Escribe `depende_de_epicas` en cada plan.
+- **Validaciones mecánicas:** Las referencias en `implementa` deben existir, no dependencias circulares, roles coherentes con ADRs.
+- **Validaciones semánticas:** Sin conflictos de escritura concurrente entre épicas. Granularidad (Beck).

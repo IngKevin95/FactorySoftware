@@ -1,9 +1,11 @@
-﻿---
-id: construction-worktree_integration
-title: Worktree Integration
-description: Integration within Git worktrees.
+---
+id: construction
+steps:
+  - id: worktree_integration
+    depende_de: [task_execution]
 ---
 
-# Worktree Integration
+# Skill: construction-worktree_integration
 
-Guidelines for Git worktree integration.
+Integra mecánicamente los worktrees de las tareas completadas a la rama de la épica.
+Si hay conflicto real, es señal de falla en `plan_audit`. Se reporta como hallazgo retroactivo y no se hace un merge ciego.

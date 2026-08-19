@@ -1,9 +1,11 @@
-﻿---
-id: construction-pr_gate
-title: PR Gate
-description: Validating changes before pull request integration.
+---
+id: construction
+steps:
+  - id: pr_gate
+    depende_de: [construction_integral_audit]
 ---
 
-# PR Gate
+# Skill: construction-pr_gate
 
-Guidelines for passing the PR gate.
+Abre Pull Request de `feature/EPIC-N-...` hacia `develop` usando merge commit (`--no-ff`).
+Espera la aprobación manual del usuario.

@@ -1,9 +1,13 @@
 ---
-id: construction-plan_integral_audit
-title: Plan Integral Audit
-description: Integral auditing of construction plans.
+id: construction
+steps:
+  - id: plan_integral_audit
+    depende_de: [plan_audit]
 ---
 
-# Plan Integral Audit
+# Skill: construction-plan_integral_audit
 
-Guidelines for integral plan audits.
+Auditor Integral contra Arquitectura.
+- **Validaciones:** Todo API/SCREEN está cubierto por al menos una tarea.
+- **Scope Creep:** Ninguna tarea planifica trabajo no respaldado por un API/SCREEN/ADR real.
+- **ADRs:** Las decisiones fundacionales de despliegue están reflejadas en las tareas.

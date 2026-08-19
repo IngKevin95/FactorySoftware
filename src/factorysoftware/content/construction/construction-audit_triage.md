@@ -1,9 +1,14 @@
-﻿---
-id: construction-audit_triage
-title: Audit Triage
-description: Triaging issues found during audits.
+---
+id: construction
+steps:
+  - id: audit_triage
+    depende_de: [worktree_integration]
 ---
 
-# Audit Triage
+# Skill: construction-audit_triage
 
-Guidelines for triaging audit issues.
+Decide qué dimensiones de auditoría se disparan para la épica.
+- Siempre: `functionality` y `practices`.
+- `security`: si se tocan archivos de auth, input externo, o hubo tareas con rol `seguridad`.
+- `efficiency`: si hay loops anidados, queries nuevas o alta complejidad.
+- **Salida:** Loguea decisión vía `factory log audit_triage`.
