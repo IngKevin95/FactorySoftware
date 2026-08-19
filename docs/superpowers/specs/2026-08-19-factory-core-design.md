@@ -181,11 +181,13 @@ sea lo más simple posible (un solo comando, cero preguntas en el caso común).
   (salta los que ya no coinciden en hash, advierte en vez de borrar), y
   después borra el manifest. Nunca toca archivos que no escribió.
 
-- `factory status`
+- `factory status [--write]`
   Lee `.factory/log.jsonl` y `.factory/manifest.json`, imprime: versión
   instalada, proveedores detectados, fase actual (del último evento de
   transición de fase), métricas de cobertura de QA, conteo de invocaciones
-  por skill.
+  por skill. Con `--write`, además regenera `.factory/board.md` (ver
+  sección "Tablero de seguimiento" abajo) en vez de solo imprimir por
+  stdout.
 
 - `factory log <event_type> [--data '<json>']`
   Agrega una línea a `.factory/log.jsonl`: `{"ts", "event_type", "data"}`.
@@ -201,6 +203,45 @@ sea lo más simple posible (un solo comando, cero preguntas en el caso común).
 - `log.jsonl` — stream de eventos append-only, un objeto JSON por línea
 - `metrics.json` — caché calculada (reconstruida desde log.jsonl por
   `factory status`), no se edita a mano
+- `board.md` — ver "Tablero de seguimiento" abajo
+
+## Tablero de seguimiento (`.factory/board.md`, transversal)
+
+Seguir el progreso no debe depender de correr un comando y leer texto suelto
+cada vez. `factory status --write` regenera `.factory/board.md` — markdown
+plano, versionado en git, se ve en cualquier diff/PR/editor sin herramienta
+adicional. Se reconstruye 100% desde `.factory/log.jsonl` (nunca se edita a
+mano, cualquier edición manual se pierde en la próxima regeneración).
+
+Estructura mínima:
+
+```markdown
+# Tablero de la Fábrica (auto-generado, no editar a mano)
+
+## Fase actual: <nombre de fase>
+
+### Requerimientos: ✅ completo | 🟡 en progreso | ⚪ no iniciado
+### Arquitectura: ...
+### Construcción: ...
+### QA: ...
+
+## Detalle de <fase actual, si tiene granularidad por Épica>
+
+| Épica | Depende de | Estado | Paso actual | Auditoría | PR |
+|-------|-----------|--------|-------------|-----------|-----|
+| EPIC-1 | — | 🟢 en progreso | task_execution (3/4 tareas) | pendiente | — |
+| EPIC-2 | EPIC-1 | ⏸️ esperando EPIC-1 | branch_setup bloqueado | — | — |
+| EPIC-3 | — | ✅ mergeada | — | ok | #12 (merged) |
+```
+
+Toda fase que declare pasos con `fan_out` a nivel de Épica (hoy:
+`hu_por_epica` en Requerimientos, `task_planning`/`task_execution`/
+`construction_audit`/`pr_gate` en Construcción) alimenta esta tabla — cada
+spec de fase indica, al declarar sus pasos, cuáles corresponden a qué
+columna. El estado de cada Épica sale de los eventos `pipeline_step`,
+`audit_iteration` y `phase_gate` correspondientes a esa Épica en el log; la
+columna "Depende de" sale del mecanismo de dependencias entre Épicas que
+define el spec de Construcción.
 
 ## Comportamiento de bloqueo del asesor/auditor (transversal, definido acá
 porque afecta el schema del log)
@@ -425,6 +466,10 @@ las reglas de Beck:
 - `test_cli.py`: idempotencia de init/update/uninstall y específicamente el
   comportamiento de "no pisar ediciones del usuario" (es la única rama no
   trivial de todo el sistema — tiene test dedicado).
+- `test_board.py`: `factory status --write` sobre un `log.jsonl` fixture con
+  eventos de varias fases/Épicas produce el `.factory/board.md` esperado
+  (snapshot); regenerar sobre un `board.md` editado a mano lo sobreescribe
+  sin preguntar (documentado como comportamiento esperado, no un bug).
 
 ## Preguntas abiertas / riesgos marcados para el plan de implementación
 
