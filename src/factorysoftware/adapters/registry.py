@@ -5,9 +5,13 @@ from pathlib import Path
 
 from factorysoftware.adapters.base import ProviderAdapter
 from factorysoftware.adapters.claude_code import ClaudeCodeAdapter
+from factorysoftware.adapters.codex import CodexAdapter
 from factorysoftware.adapters.copilot import CopilotAdapter
+from factorysoftware.adapters.opencode import OpenCodeAdapter
 
-ALL_ADAPTERS: list[ProviderAdapter] = [ClaudeCodeAdapter(), CopilotAdapter()]
+ALL_ADAPTERS: list[ProviderAdapter] = [
+    ClaudeCodeAdapter(), CopilotAdapter(), CodexAdapter(), OpenCodeAdapter(),
+]
 
 
 def detect(project_root: Path, adapters: list[ProviderAdapter] | None = None) -> list[ProviderAdapter]:

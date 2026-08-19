@@ -192,3 +192,36 @@ def test_copilot_render_adds_heading():
     rendered = CopilotAdapter().render("requirements-prd", "Hacé el PRD.")
     assert rendered.startswith("## requirements-prd")
     assert "Hacé el PRD." in rendered
+
+
+from factorysoftware.adapters.codex import CodexAdapter
+from factorysoftware.adapters.opencode import OpenCodeAdapter
+
+
+def test_codex_detect_false_without_marker(tmp_path: Path):
+    assert CodexAdapter().detect(tmp_path) is False
+
+
+def test_codex_detect_true_with_codex_marker(tmp_path: Path):
+    (tmp_path / ".codex").mkdir()
+    assert CodexAdapter().detect(tmp_path) is True
+
+
+def test_codex_target_paths_all_same_agents_md(tmp_path: Path):
+    paths = CodexAdapter().target_paths(tmp_path, ["a", "b"])
+    assert paths["a"] == paths["b"] == tmp_path / "AGENTS.md"
+
+
+def test_codex_render_is_plain_no_frontmatter():
+    rendered = CodexAdapter().render("requirements-prd", "Hacé el PRD.")
+    assert not rendered.startswith("---")
+    assert "Hacé el PRD." in rendered
+
+
+def test_opencode_target_paths_same_as_codex(tmp_path: Path):
+    paths = OpenCodeAdapter().target_paths(tmp_path, ["a"])
+    assert paths["a"] == tmp_path / "AGENTS.md"
+
+
+def test_opencode_detect_false_without_marker(tmp_path: Path):
+    assert OpenCodeAdapter().detect(tmp_path) is False
