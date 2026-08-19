@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from factorysoftware.content import PhaseContent, StepDecl, parse_content
 
 
@@ -68,6 +70,42 @@ def test_parse_content_basic(tmp_path: Path):
     assert "Preámbulo" in content.preamble
     assert "Instrucciones del paso PRD" in content.sections["prd"]
     assert "Instrucciones del paso Épicas" in content.sections["epics"]
+
+
+FIXTURE_MISSING_SECTION = """\
+---
+id: requirements
+steps:
+  - id: prd
+  - id: epics
+---
+Preámbulo.
+
+## Paso: prd
+
+Sólo el PRD tiene sección; 'epics' quedó sin cuerpo.
+"""
+
+
+def test_parse_content_missing_step_section_raises_named_error(tmp_path: Path):
+    p = tmp_path / "requirements.md"
+    p.write_text(FIXTURE_MISSING_SECTION, encoding="utf-8")
+    with pytest.raises(ValueError) as exc:
+        parse_content(p)
+    message = str(exc.value)
+    assert str(p) in message
+    # sólo el paso que falta se nombra, no los que sí tienen sección
+    assert message.endswith("epics")
+
+
+def test_parse_content_without_frontmatter_raises_named_error(tmp_path: Path):
+    p = tmp_path / "README.md"
+    p.write_text("# Solo un readme suelto, sin frontmatter.\n", encoding="utf-8")
+    with pytest.raises(ValueError) as exc:
+        parse_content(p)
+    message = str(exc.value)
+    assert str(p) in message
+    assert "frontmatter" in message.lower()
 
 
 def test_parse_content_with_unit_and_role(tmp_path: Path):

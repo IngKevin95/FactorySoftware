@@ -28,8 +28,21 @@ class PhaseContent(BaseModel):
 
 def parse_content(path: Path) -> PhaseContent:
     text = path.read_text(encoding="utf-8")
-    _, frontmatter_raw, body = text.split("---", 2)
-    frontmatter = yaml.safe_load(frontmatter_raw)
+    parts = text.split("---", 2)
+    if len(parts) < 3 or parts[0].strip():
+        raise ValueError(
+            f"{path}: el archivo de contenido debe empezar con un frontmatter YAML "
+            "delimitado por '---' arriba y abajo."
+        )
+    _, frontmatter_raw, body = parts
+
+    try:
+        frontmatter = yaml.safe_load(frontmatter_raw)
+    except yaml.YAMLError as e:
+        raise ValueError(f"{path}: el frontmatter YAML es inválido: {e}") from e
+    if not isinstance(frontmatter, dict):
+        raise ValueError(f"{path}: el frontmatter YAML debe ser un mapeo de claves y valores.")
+
     steps = [StepDecl(**s) for s in frontmatter["steps"]]
 
     matches = list(_SECTION_RE.finditer(body))
@@ -39,6 +52,13 @@ def parse_content(path: Path) -> PhaseContent:
         start = m.end()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
         sections[m.group("id")] = body[start:end].strip()
+
+    missing = [s.id for s in steps if s.id not in sections]
+    if missing:
+        raise ValueError(
+            f"{path}: los pasos declarados en el frontmatter no tienen sección "
+            f"'## Paso: <id>' en el cuerpo: {', '.join(missing)}"
+        )
 
     return PhaseContent(
         id=frontmatter["id"],
