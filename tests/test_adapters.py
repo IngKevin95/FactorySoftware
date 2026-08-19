@@ -153,6 +153,14 @@ def test_select_by_name_overrides_detection(tmp_path: Path):
     assert [a.name for a in selected] == ["always_no"]
 
 
+def test_select_warns_about_unrecognized_provider_names(capsys):
+    selected = registry.select(["always_no", "typo_provider"], adapters=[_AlwaysYes(), _AlwaysNo()])
+    assert [a.name for a in selected] == ["always_no"]
+    err = capsys.readouterr().err
+    assert "typo_provider" in err
+    assert "always_no" in err  # lista los válidos
+
+
 def test_all_adapters_includes_claude_code():
     names = [a.name for a in registry.ALL_ADAPTERS]
     assert "claude_code" in names

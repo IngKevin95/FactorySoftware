@@ -174,6 +174,44 @@ def test_status_step_prints_pendiente_or_completado(tmp_path: Path, capsys):
     assert capsys.readouterr().out.strip() == "completado"
 
 
+def test_status_step_without_dot_errors_friendly(tmp_path: Path, capsys):
+    content_dir = _make_content_dir(tmp_path)
+    (tmp_path / ".claude").mkdir()
+    main(["init", "--project-root", str(tmp_path), "--content-dir", str(content_dir), "--providers", "claude_code"])
+    capsys.readouterr()
+    code = main(["status", "--project-root", str(tmp_path), "--step", "requirements"])
+    assert code == 1
+    assert "<fase>.<paso>" in capsys.readouterr().err
+
+
+def test_log_with_malformed_data_errors_friendly(tmp_path: Path, capsys):
+    code = main(["log", "pipeline_step", "--project-root", str(tmp_path), "--data", "{no es json}"])
+    assert code == 1
+    assert "json" in capsys.readouterr().err.lower()
+    assert not (tmp_path / ".factory" / "log.jsonl").exists()
+
+
+def test_status_write_also_refreshes_metrics(tmp_path: Path):
+    content_dir = _make_content_dir(tmp_path)
+    (tmp_path / ".claude").mkdir()
+    main(["init", "--project-root", str(tmp_path), "--content-dir", str(content_dir), "--providers", "claude_code"])
+    code = main(["status", "--project-root", str(tmp_path), "--write"])
+    assert code == 0
+    assert (tmp_path / ".factory" / "metrics.json").exists()
+
+
+def test_init_installs_gitflow_hook(tmp_path: Path):
+    content_dir = _make_content_dir(tmp_path)
+    (tmp_path / ".claude").mkdir()
+    code = main([
+        "init", "--project-root", str(tmp_path), "--content-dir", str(content_dir),
+        "--providers", "claude_code",
+    ])
+    assert code == 0
+    assert (tmp_path / ".claude" / "hooks" / "gitflow-guard.sh").exists()
+    assert (tmp_path / ".claude" / "settings.json").exists()
+
+
 def test_full_lifecycle_init_update_uninstall(tmp_path: Path):
     content_dir = _make_content_dir(tmp_path)
     (tmp_path / ".claude").mkdir()

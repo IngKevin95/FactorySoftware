@@ -58,7 +58,7 @@ def cmd_update(args: argparse.Namespace) -> int:
         print("No hay instalación previa. Corré 'factory init' primero.", file=sys.stderr)
         return 1
 
-    providers_override = args.providers.split(",") if getattr(args, "providers", None) else None
+    providers_override = args.providers.split(",") if args.providers else None
     adapters = _resolve_adapters(project_root, providers_override)
     if not adapters:
         adapters = registry.select(manifest.providers)
@@ -87,7 +87,15 @@ def cmd_status(args: argparse.Namespace) -> int:
         print("No hay instalación previa. Corré 'factory init' primero.", file=sys.stderr)
         return 1
 
+    write_metrics(project_root)
+
     if args.step:
+        if "." not in args.step:
+            print(
+                f"--step debe tener el formato <fase>.<paso> (recibido: '{args.step}').",
+                file=sys.stderr,
+            )
+            return 1
         phase, step_id = args.step.split(".", 1)
         print(query_step_status(project_root, phase, step_id, args.fan_out_index))
         return 0
@@ -97,7 +105,6 @@ def cmd_status(args: argparse.Namespace) -> int:
         print("Tablero regenerado en .factory/board.md")
         return 0
 
-    write_metrics(project_root)
     print(f"Versión instalada: {manifest.version}")
     print(f"Proveedores: {', '.join(manifest.providers)}")
     events = read_log(project_root)
@@ -107,7 +114,11 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 def cmd_log(args: argparse.Namespace) -> int:
     project_root = Path(args.project_root)
-    data = json.loads(args.data) if args.data else {}
+    try:
+        data = json.loads(args.data) if args.data else {}
+    except json.JSONDecodeError as e:
+        print(f"--data no es JSON válido: {e}", file=sys.stderr)
+        return 1
     append_log(project_root, args.event_type, data)
     return 0
 

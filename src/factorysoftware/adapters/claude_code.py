@@ -2,23 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from factorysoftware.adapters.base import read_json_config, write_guard_script, write_json_config
-
-_GUARD_SCRIPT = """\
-#!/bin/sh
-input=$(cat)
-cmd=$(printf '%s' "$input" | grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1)
-case "$cmd" in
-  *"git commit"*|*"git push"*)
-    branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
-    if [ "$branch" = "main" ] || [ "$branch" = "develop" ]; then
-      echo "Bloqueado: commit/push directo a $branch prohibido por Git Flow. Usa una rama feature/*." >&2
-      exit 2
-    fi
-    ;;
-esac
-exit 0
-"""
+from factorysoftware.adapters.base import (
+    GUARD_SCRIPT,
+    read_json_config,
+    write_guard_script,
+    write_json_config,
+)
 
 
 class ClaudeCodeAdapter:
@@ -40,7 +29,7 @@ class ClaudeCodeAdapter:
     def install_gitflow_hook(self, project_root: Path) -> list[Path]:
         hooks_dir = project_root / ".claude" / "hooks"
         guard_path = hooks_dir / "gitflow-guard.sh"
-        write_guard_script(guard_path, _GUARD_SCRIPT)
+        write_guard_script(guard_path, GUARD_SCRIPT)
 
         settings_path = project_root / ".claude" / "settings.json"
         settings = read_json_config(settings_path)

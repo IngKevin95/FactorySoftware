@@ -15,6 +15,29 @@ class ProviderAdapter(Protocol):
     def render(self, skill_id: str, content_md: str) -> str: ...
 
 
+# Guardia de Git Flow compartida por los adapters primarios (Claude Code y
+# Antigravity). Es un badén de conveniencia, NO una frontera de seguridad:
+# hace pattern-matching sobre el string "command" del payload JSON del hook, así
+# que variantes como `git  commit` (dos espacios) o `cd sub && git push` lo
+# esquivan. Sirve para evitar el commit distraído a main/develop, no para
+# impedir a alguien que quiera saltárselo.
+GUARD_SCRIPT = """\
+#!/bin/sh
+input=$(cat)
+cmd=$(printf '%s' "$input" | grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1)
+case "$cmd" in
+  *"git commit"*|*"git push"*)
+    branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+    if [ "$branch" = "main" ] || [ "$branch" = "develop" ]; then
+      echo "Bloqueado: commit/push directo a $branch prohibido por Git Flow. Usa una rama feature/*." >&2
+      exit 2
+    fi
+    ;;
+esac
+exit 0
+"""
+
+
 def write_guard_script(guard_path: Path, script_text: str) -> None:
     """Write an executable shell script, creating parent directories as needed.
 

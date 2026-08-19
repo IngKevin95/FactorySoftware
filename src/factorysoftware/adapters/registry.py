@@ -30,4 +30,11 @@ def detect(project_root: Path, adapters: list[ProviderAdapter] | None = None) ->
 def select(names: list[str], adapters: list[ProviderAdapter] | None = None) -> list[ProviderAdapter]:
     candidates = adapters if adapters is not None else ALL_ADAPTERS
     by_name = {a.name: a for a in candidates}
+    unknown = [n for n in names if n not in by_name]
+    if unknown:
+        print(
+            f"Advertencia: proveedor(es) desconocido(s): {', '.join(unknown)}. "
+            f"Válidos: {', '.join(sorted(by_name))}.",
+            file=sys.stderr,
+        )
     return [by_name[n] for n in names if n in by_name]
