@@ -219,19 +219,23 @@ Construcción necesita para armar el componente real.
   # depende de apis (no solo de data_model) porque cada pantalla necesita
   # conocer el contrato real de los endpoints que va a consumir
 
-- id: gap_check_and_traceability
+- id: gap_check_and_traceability [rol: Auditor de fase]
   depende_de: [apis, screens]
   fan_out: null
   paralelizable: false
-  # actualiza traceability.md de Requerimientos con los ids de
+  # Auditor (checklist estructural 1-5 + semántico 6-8, ver más abajo).
+  # Actualiza traceability.md de Requerimientos con los ids de
   # API-N/SCREEN-N que implementan cada HU
 
-- id: audit_loop
+- id: integral_audit [rol: Auditor Integral]
   depende_de: [gap_check_and_traceability]
   fan_out: null
   paralelizable: false
-  # loop auditor-constructor del núcleo, hasta 3 iteraciones, después gate
-  # de aprobación humana explícita
+  # último paso agéntico antes del gate humano: lee Requerimientos +
+  # Arquitectura completos y valida que ningún objetivo/métrica de éxito
+  # del PRD quedó sin cobertura arquitectónica, y que ninguna ADR/API/
+  # pantalla introdujo alcance sin respaldo en una HU real (scope creep) —
+  # ver checklist propio más abajo
 ```
 
 Si el proveedor no soporta despacho paralelo, `apis` y `screens` corren
@@ -242,8 +246,10 @@ criterio que en Requerimientos, nunca colapsan en una sola pasada gigante.
 
 Bloqueo duro, igual que Requerimientos: no se avanza a Construcción sin
 aprobación explícita del usuario sobre ADRs + overview + data model + APIs +
-pantallas, después de que el loop de auditoría (núcleo, hasta 3 iteraciones)
-cierre limpio.
+pantallas, después de que **ambos** roles de auditoría del núcleo cierren
+limpio, en orden: primero el Auditor de fase (`gap_check_and_traceability`),
+después el Auditor Integral (`integral_audit`) — cada uno con su propio tope
+de 3 iteraciones.
 
 ## Checklist del auditor
 
@@ -298,6 +304,32 @@ Verificaciones de juicio (semánticas):
 
 Las verificaciones 1–5 se ejecutan de forma determinística; las 6–8 y a–d
 quedan a cargo del paso de auditoría semántica definido en el núcleo.
+
+### Checklist de `integral_audit` (rol: Auditor Integral)
+
+Todas de juicio, sobre Requerimientos + Arquitectura leídos como un
+conjunto, no solo cruzando ids:
+
+i. Todo objetivo y métrica de éxito del `PRD.md` tiene al menos una
+   decisión de arquitectura (ADR, componente del overview, o API/pantalla)
+   que contribuye a cumplirlo — un objetivo del PRD sin ningún respaldo
+   arquitectónico es un hallazgo bloqueante, no una omisión menor.
+ii. Ninguna ADR, componente de `architecture-overview.md`, `API-N.md` o
+   `SCREEN-N.md` introduce capacidad/alcance que no está pedido ni
+   implícito en ninguna HU o en el PRD (scope creep técnico — ej. una ADR
+   que agrega un módulo de analytics que ninguna HU pidió).
+iii. El alcance explícitamente excluido en el PRD ("qué explícitamente no
+   entra") no aparece resuelto ni parcialmente construido en ningún
+   artefacto de Arquitectura.
+iv. Las restricciones duras de `constraints.md` siguen siendo consistentes
+   con las restricciones/supuestos declarados en el PRD (si el PRD asume
+   algo que `constraints.md` contradice, es un hallazgo bloqueante, no una
+   ADR que lo resuelve en silencio).
+
+Este checklist es deliberadamente distinto del de `gap_check_and_traceability`:
+ese verifica que los documentos *se referencien* correctamente entre sí; este
+verifica que el *contenido* de una fase siga siendo fiel a la intención de la
+fase anterior.
 
 ## Extensión del CLI del núcleo
 
