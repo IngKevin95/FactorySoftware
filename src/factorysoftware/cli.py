@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
 from factorysoftware.adapters import registry
 from factorysoftware.installer import install_all, update_all, uninstall_all
-from factorysoftware.state import read_manifest
+from factorysoftware.state import (
+    append_log,
+    read_log,
+    read_manifest,
+    query_step_status,
+    write_board,
+    write_metrics,
+)
 
 
 def _default_content_dir() -> Path:
@@ -72,6 +80,38 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_status(args: argparse.Namespace) -> int:
+    project_root = Path(args.project_root)
+    manifest = read_manifest(project_root)
+    if manifest is None:
+        print("No hay instalación previa. Corré 'factory init' primero.", file=sys.stderr)
+        return 1
+
+    if args.step:
+        phase, step_id = args.step.split(".", 1)
+        print(query_step_status(project_root, phase, step_id, args.fan_out_index))
+        return 0
+
+    if args.write:
+        write_board(project_root)
+        print("Tablero regenerado en .factory/board.md")
+        return 0
+
+    write_metrics(project_root)
+    print(f"Versión instalada: {manifest.version}")
+    print(f"Proveedores: {', '.join(manifest.providers)}")
+    events = read_log(project_root)
+    print(f"Eventos registrados: {len(events)}")
+    return 0
+
+
+def cmd_log(args: argparse.Namespace) -> int:
+    project_root = Path(args.project_root)
+    data = json.loads(args.data) if args.data else {}
+    append_log(project_root, args.event_type, data)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="factory")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -86,6 +126,19 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("uninstall")
     p.add_argument("--project-root", default=".")
     p.set_defaults(func=cmd_uninstall)
+
+    p = sub.add_parser("status")
+    p.add_argument("--project-root", default=".")
+    p.add_argument("--write", action="store_true")
+    p.add_argument("--step", default=None, help="<phase>.<step_id>")
+    p.add_argument("--fan-out-index", type=int, default=None)
+    p.set_defaults(func=cmd_status)
+
+    p = sub.add_parser("log")
+    p.add_argument("event_type")
+    p.add_argument("--project-root", default=".")
+    p.add_argument("--data", default=None)
+    p.set_defaults(func=cmd_log)
 
     return parser
 

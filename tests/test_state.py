@@ -8,6 +8,9 @@ from factorysoftware.state import (
     write_manifest,
     append_log,
     read_log,
+    compute_metrics,
+    query_step_status,
+    write_metrics,
 )
 
 
@@ -64,3 +67,32 @@ def test_append_log_is_append_only(tmp_path: Path):
     assert len(lines) == 2
     json.loads(lines[0])
     json.loads(lines[1])
+
+
+def test_query_step_status_pendiente_when_no_event(tmp_path: Path):
+    assert query_step_status(tmp_path, "requirements", "prd") == "pendiente"
+
+
+def test_query_step_status_completado_after_event(tmp_path: Path):
+    append_log(tmp_path, "pipeline_step", {"phase": "requirements", "step_id": "prd", "estado": "completado"})
+    assert query_step_status(tmp_path, "requirements", "prd") == "completado"
+
+
+def test_query_step_status_fan_out_needs_all_instances_completado(tmp_path: Path):
+    append_log(tmp_path, "pipeline_step", {"phase": "requirements", "step_id": "hu_por_epica", "fan_out_index": 0, "estado": "completado"})
+    append_log(tmp_path, "pipeline_step", {"phase": "requirements", "step_id": "hu_por_epica", "fan_out_index": 1, "estado": "iniciado"})
+    assert query_step_status(tmp_path, "requirements", "hu_por_epica") == "pendiente"
+    assert query_step_status(tmp_path, "requirements", "hu_por_epica", fan_out_index=0) == "completado"
+    assert query_step_status(tmp_path, "requirements", "hu_por_epica", fan_out_index=1) == "pendiente"
+
+
+def test_compute_metrics_counts_invocations_per_skill(tmp_path: Path):
+    append_log(tmp_path, "pipeline_step", {"phase": "requirements", "step_id": "prd", "estado": "completado"})
+    append_log(tmp_path, "pipeline_step", {"phase": "requirements", "step_id": "prd", "estado": "iniciado"})
+    metrics = compute_metrics(tmp_path)
+    assert metrics["skill_invocations"]["requirements.prd"] == 2
+
+
+def test_write_metrics_creates_file(tmp_path: Path):
+    write_metrics(tmp_path)
+    assert (tmp_path / ".factory" / "metrics.json").exists()

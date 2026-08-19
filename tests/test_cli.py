@@ -115,3 +115,60 @@ def test_uninstall_after_init_removes_files(tmp_path: Path):
     code = main(["uninstall", "--project-root", str(tmp_path)])
     assert code == 0
     assert not (tmp_path / ".claude" / "skills" / "requirements-prd" / "SKILL.md").exists()
+
+
+import json as _json
+
+
+def test_log_command_appends_event(tmp_path: Path):
+    code = main([
+        "log", "pipeline_step",
+        "--project-root", str(tmp_path),
+        "--data", _json.dumps({"phase": "requirements", "step_id": "prd", "estado": "completado"}),
+    ])
+    assert code == 0
+    events = _json.loads((tmp_path / ".factory" / "log.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert events["event_type"] == "pipeline_step"
+    assert events["data"]["step_id"] == "prd"
+
+
+def test_status_without_manifest_errors(tmp_path: Path, capsys):
+    code = main(["status", "--project-root", str(tmp_path)])
+    assert code != 0
+    assert "init" in capsys.readouterr().err.lower()
+
+
+def test_status_prints_summary(tmp_path: Path, capsys):
+    content_dir = _make_content_dir(tmp_path)
+    (tmp_path / ".claude").mkdir()
+    main(["init", "--project-root", str(tmp_path), "--content-dir", str(content_dir), "--providers", "claude_code"])
+    code = main(["status", "--project-root", str(tmp_path)])
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "claude_code" in out
+    assert (tmp_path / ".factory" / "metrics.json").exists()
+
+
+def test_status_write_generates_board(tmp_path: Path):
+    content_dir = _make_content_dir(tmp_path)
+    (tmp_path / ".claude").mkdir()
+    main(["init", "--project-root", str(tmp_path), "--content-dir", str(content_dir), "--providers", "claude_code"])
+    code = main(["status", "--project-root", str(tmp_path), "--write"])
+    assert code == 0
+    assert (tmp_path / ".factory" / "board.md").exists()
+
+
+def test_status_step_prints_pendiente_or_completado(tmp_path: Path, capsys):
+    content_dir = _make_content_dir(tmp_path)
+    (tmp_path / ".claude").mkdir()
+    main(["init", "--project-root", str(tmp_path), "--content-dir", str(content_dir), "--providers", "claude_code"])
+    capsys.readouterr()
+    code = main(["status", "--project-root", str(tmp_path), "--step", "requirements.prd"])
+    assert code == 0
+    assert capsys.readouterr().out.strip() == "pendiente"
+    main([
+        "log", "pipeline_step", "--project-root", str(tmp_path),
+        "--data", _json.dumps({"phase": "requirements", "step_id": "prd", "estado": "completado"}),
+    ])
+    code = main(["status", "--project-root", str(tmp_path), "--step", "requirements.prd"])
+    assert capsys.readouterr().out.strip() == "completado"
