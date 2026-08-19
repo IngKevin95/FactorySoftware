@@ -5,28 +5,24 @@ nuevo — se regenera a mano si los pipelines cambian)
 Fuente: `2026-08-19-factory-core-design.md` +
 `2026-08-19-{requirements,architecture,construction,qa}-skill-design.md`
 
-Convención de nombres de skill (definida en el núcleo): cada fase se expone
-como un skill orquestador `<fase>` (modos 2 y 3, ver abajo), un skill por
-paso declarado `<fase>-<paso>` (modo 1, con chequeo de prerequisitos), y —
-en fases con unidad principal de fan-out — un skill `<fase>-auditor`
-(Auditor standalone). En proveedores de archivo único (Copilot/Codex/
-OpenCode/Antigravity si no confirma multi-archivo) los tres modos viven
-como secciones del mismo archivo de instrucciones.
+Cada modo de invocación es un **skill con nombre propio**, no un parámetro
+oculto de un skill genérico:
 
-### Los 3 modos de invocación (núcleo)
+| Skill | Modo | Requerimientos | Arquitectura | Construcción | QA |
+|---|---|---|---|---|---|
+| `<fase>-<paso>` | Manual, un paso suelto | ✅ | ✅ | ✅ | ✅ |
+| `<fase>-flujo` | Automático completo (todas las unidades) | `requirements-flujo` | `architecture-flujo` | `construction-e2e` *(nombre propio, no "-flujo")* | `qa-flujo` |
+| `<fase>-<unidad>` | Automático por unidad (recibe la unidad como argumento) | — (no aplica) | — (no aplica) | `construction-slide` | `qa-slide` |
+| `<fase>-auditor` | Auditor standalone (por unidad o general, sin reconstruir) | — (no aplica) | — (no aplica) | `construction-auditor` | `qa-auditor` |
 
-1. **Manual** — un paso suelto (`<fase>-<paso>`).
-2. **Automático por unidad** — el skill orquestador `<fase>`, acotado a una
-   sola instancia de la unidad principal (ej. "construí la épica 3
-   completa"). Solo disponible en fases que declaran unidad principal:
-   **Construcción y QA** (Épica en ambas).
-3. **Automático completo** — el mismo skill orquestador `<fase>`, sin
-   acotar, para todas las unidades.
-
-Además, `<fase>-auditor` (solo Construcción y QA) corre **solo** el Auditor
-de fase + Auditor Integral sobre lo que ya existe, sin reconstruir —
-"auditá la épica 3" (por unidad) o "auditoría general" (todo lo existente a
-la fecha).
+Solo Construcción y QA declaran **unidad principal de fan-out** (la Épica),
+por eso son las únicas con `-slide` y `-auditor`. `-slide`/`-auditor` son
+**un solo skill fijo cada uno** — reciben el id de la unidad como argumento
+al invocarlos (ej. `construction-slide` con `EPIC-3`), no se genera un
+skill nuevo por cada Épica que se crea. En proveedores de archivo único
+(Copilot/Codex/OpenCode/Antigravity si no confirma multi-archivo) todos
+estos viven como secciones nombradas del mismo archivo de instrucciones, no
+como archivos separados.
 
 ## Personas transversales (núcleo, no son pasos de ninguna fase)
 
@@ -42,7 +38,7 @@ Bloqueante/Mayor/Menor; solo Bloqueante frena el gate.
 
 ---
 
-## 1. Requerimientos (`requirements`)
+## 1. Requerimientos (`requirements-flujo`)
 
 Sin fase anterior — no tiene Auditor Integral.
 
@@ -59,7 +55,7 @@ Gate: aprobación humana explícita de PRD + Épicas + HU + Flujos.
 
 ---
 
-## 2. Arquitectura (`architecture`)
+## 2. Arquitectura (`architecture-flujo`)
 
 | Paso (skill manual) | Tipo | Fan-out | Rol/Auditor |
 |---|---|---|---|
@@ -79,7 +75,7 @@ Gate: aprobación humana de ADRs + overview + data model + APIs + pantallas
 
 ---
 
-## 3. Construcción (`construction`)
+## 3. Construcción (`construction-e2e` / `construction-slide`)
 
 | Paso (skill manual) | Tipo | Fan-out | Rol/Auditor |
 |---|---|---|---|
@@ -105,14 +101,15 @@ Gate: aprobación humana de ADRs + overview + data model + APIs + pantallas
 
 Gate: PR a `develop` (merge commit `--no-ff`) por Épica.
 
-**Unidad principal**: Épica → habilita `construction` en modo "por unidad"
-("construí la épica 3 completa") además de "completo" ("construí todo"), y
-el skill standalone `construction-auditor` ("auditá la épica 3" /
-"auditoría general de construcción").
+**Skills adicionales** (unidad principal: Épica): `construction-slide`
+("construí el slide de la épica 3", un solo skill + argumento de Épica),
+`construction-e2e` (modo completo, "construí todo, slice por slice"),
+`construction-auditor` ("auditá la épica 3" / "auditoría general de
+construcción").
 
 ---
 
-## 4. QA (`qa`)
+## 4. QA (`qa-flujo` / `qa-slide`)
 
 | Paso (skill manual) | Tipo | Fan-out | Rol/Auditor |
 |---|---|---|---|
@@ -130,10 +127,10 @@ el skill standalone `construction-auditor` ("auditá la épica 3" /
 Gate: PR único de `feature/qa-coverage-...` a `develop` (modo completo) o
 `feature/qa-coverage-epic-N-...` (modo por unidad).
 
-**Unidad principal**: Épica → habilita `qa` en modo "por unidad" ("corré QA
+**Skills adicionales** (unidad principal: Épica): `qa-slide` ("corré QA
 solo de lo que tocó la épica 3", filtra HU/NFR de esa Épica y los `FLUJO-N`
-completamente contenidos en ella) además de "completo", y el skill
-standalone `qa-auditor` ("auditá QA de la épica 3" / "auditoría general de
+completamente contenidos en ella), `qa-flujo` (modo completo, "corré QA de
+todo"), `qa-auditor` ("auditá QA de la épica 3" / "auditoría general de
 QA").
 
 ---
