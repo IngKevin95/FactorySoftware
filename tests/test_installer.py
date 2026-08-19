@@ -143,3 +143,34 @@ def test_update_all_skips_user_edited_files(tmp_path: Path):
     assert updated_prd_entry is not None
     assert original_prd_entry.hash == updated_prd_entry.hash
     assert original_prd_entry.skill_id == updated_prd_entry.skill_id
+
+
+from factorysoftware.installer import uninstall_all
+from factorysoftware.state import read_manifest as _read_manifest_for_test
+
+
+def test_uninstall_all_removes_manifest_files(tmp_path: Path):
+    content_dir = tmp_path / "content"
+    content_dir.mkdir()
+    (content_dir / "requirements.md").write_text(_FIXTURE_PHASE, encoding="utf-8")
+    install_all(tmp_path, content_dir, adapters=[_MultiFileAdapter()])
+
+    warnings = uninstall_all(tmp_path)
+
+    assert warnings == []
+    assert not (tmp_path / "requirements-prd.md").exists()
+    assert not (tmp_path / "requirements-flujo.md").exists()
+    assert _read_manifest_for_test(tmp_path) is None
+
+
+def test_uninstall_all_skips_user_edited_files(tmp_path: Path):
+    content_dir = tmp_path / "content"
+    content_dir.mkdir()
+    (content_dir / "requirements.md").write_text(_FIXTURE_PHASE, encoding="utf-8")
+    install_all(tmp_path, content_dir, adapters=[_MultiFileAdapter()])
+    (tmp_path / "requirements-prd.md").write_text("edición manual", encoding="utf-8")
+
+    warnings = uninstall_all(tmp_path)
+
+    assert (tmp_path / "requirements-prd.md").exists()
+    assert any("requirements-prd" in w for w in warnings)

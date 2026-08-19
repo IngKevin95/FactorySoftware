@@ -111,3 +111,25 @@ def update_all(
     )
     write_manifest(project_root, manifest)
     return manifest, warnings
+
+
+def uninstall_all(project_root: Path) -> list[str]:
+    manifest = read_manifest(project_root)
+    if manifest is None:
+        return []
+
+    warnings: list[str] = []
+    for f in manifest.files:
+        path = project_root / f.path
+        if not path.exists():
+            continue
+        on_disk_hash = compute_hash(path.read_text(encoding="utf-8"))
+        if on_disk_hash != f.hash:
+            warnings.append(f"{f.path} (skill(s): {f.skill_id}) fue editado a mano, no se borra")
+            continue
+        path.unlink()
+
+    if not warnings:
+        (project_root / ".factory" / "manifest.json").unlink(missing_ok=True)
+
+    return warnings
