@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
+
+from factorysoftware.adapters.base import read_json_config, write_guard_script, write_json_config
 
 _GUARD_SCRIPT = """\
 #!/bin/sh
@@ -38,21 +39,11 @@ class ClaudeCodeAdapter:
 
     def install_gitflow_hook(self, project_root: Path) -> list[Path]:
         hooks_dir = project_root / ".claude" / "hooks"
-        hooks_dir.mkdir(parents=True, exist_ok=True)
         guard_path = hooks_dir / "gitflow-guard.sh"
-        guard_path.write_text(_GUARD_SCRIPT, encoding="utf-8")
-        guard_path.chmod(0o755)
+        write_guard_script(guard_path, _GUARD_SCRIPT)
 
         settings_path = project_root / ".claude" / "settings.json"
-        settings = {}
-        if settings_path.exists():
-            try:
-                settings = json.loads(settings_path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError as e:
-                raise ValueError(
-                    f"Failed to parse {settings_path}: malformed JSON. "
-                    f"Please fix or remove the file. Details: {e}"
-                ) from e
+        settings = read_json_config(settings_path)
 
         settings.setdefault("hooks", {}).setdefault("PreToolUse", [])
 
@@ -73,6 +64,6 @@ class ClaudeCodeAdapter:
                 }
             )
 
-        settings_path.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+        write_json_config(settings_path, settings)
 
         return [guard_path, settings_path]

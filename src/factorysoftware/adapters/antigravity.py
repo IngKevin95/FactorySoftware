@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
+
+from factorysoftware.adapters.base import read_json_config, write_guard_script, write_json_config
 
 # confidence: verified 2026-08-19 via web search against official Antigravity
 # docs (antigravity.google/docs/hooks, antigravity.google/docs/cli/plugins)
@@ -54,21 +55,11 @@ class AntigravityAdapter:
 
     def install_gitflow_hook(self, project_root: Path) -> list[Path]:
         agents_dir = project_root / ".agents"
-        agents_dir.mkdir(parents=True, exist_ok=True)
         guard_path = agents_dir / "gitflow-guard.sh"
-        guard_path.write_text(_GUARD_SCRIPT, encoding="utf-8")
-        guard_path.chmod(0o755)
+        write_guard_script(guard_path, _GUARD_SCRIPT)
 
         hooks_json_path = agents_dir / "hooks.json"
-        hooks_config = {}
-        if hooks_json_path.exists():
-            try:
-                hooks_config = json.loads(hooks_json_path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError as e:
-                raise ValueError(
-                    f"Failed to parse {hooks_json_path}: malformed JSON. "
-                    f"Please fix or remove the file. Details: {e}"
-                ) from e
+        hooks_config = read_json_config(hooks_json_path)
 
         pretooluse = hooks_config.setdefault("gitflow-guard", {}).setdefault("PreToolUse", [])
 
@@ -88,6 +79,6 @@ class AntigravityAdapter:
                 }
             )
 
-        hooks_json_path.write_text(json.dumps(hooks_config, indent=2), encoding="utf-8")
+        write_json_config(hooks_json_path, hooks_config)
 
         return [guard_path, hooks_json_path]
