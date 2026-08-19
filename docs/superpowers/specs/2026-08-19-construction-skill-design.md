@@ -191,16 +191,34 @@ del núcleo (subagente paralelo si el proveedor lo soporta, serie si no).
   paralelizable: true
   # merge de los worktrees de tareas completas a la rama de la épica
 
-- id: construction_audit [agéntico, rol: Auditor]
+- id: audit_triage [mecánico]
   depende_de: [worktree_integration]
-  fan_out: "una instancia por Épica, y dentro de cada Épica, una instancia por dimensión: audit_functionality, audit_practices, audit_security, audit_efficiency"
+  fan_out: "una instancia por Épica"
   paralelizable: true
-  # las 4 dimensiones son independientes entre sí (revisar seguridad no
-  # necesita ver el resultado de revisar eficiencia) — corren en paralelo
-  # cuando el proveedor lo soporta, ver "Auditoría por dimensión" abajo.
-  # El tope de 3 iteraciones del núcleo es compartido entre las 4: si
-  # cualquiera encuentra hallazgos, se corrige y las 4 vuelven a correr
-  # juntas como la siguiente iteración — no 3 iteraciones por dimensión.
+  # decide determinísticamente (por patrones de archivo/diff, no juicio de
+  # LLM) qué dimensiones de construction_audit se disparan para esa épica.
+  # audit_functionality y audit_practices SIEMPRE se disparan (el gate de
+  # TDD y la revisión de buenas prácticas no son opcionales para código
+  # nuevo). audit_security se dispara si el diff toca archivos de auth/
+  # autorización, agrega manejo de input externo nuevo, o el plan de la
+  # épica tiene alguna TASK-N.M de rol `seguridad`. audit_efficiency se
+  # dispara si el diff agrega loops anidados, queries nuevas, o supera un
+  # umbral simple de complejidad ciclomática. La decisión (qué se disparó y
+  # por qué se excluyó lo que no) se loguea vía
+  # `factory log audit_triage '{"epic": ..., "dimensiones": [...], "excluidas": {...}}'`
+  # — saltear una dimensión queda trazable, nunca es un salto silencioso.
+
+- id: construction_audit [agéntico, rol: Auditor]
+  depende_de: [audit_triage]
+  fan_out: "una instancia por dimensión activada en audit_triage para esa Épica"
+  paralelizable: true
+  # las dimensiones activas son independientes entre sí (revisar seguridad
+  # no necesita ver el resultado de revisar eficiencia) — corren en
+  # paralelo cuando el proveedor lo soporta, ver "Auditoría por dimensión"
+  # abajo. El tope de 3 iteraciones del núcleo es compartido entre las
+  # dimensiones activas: si cualquiera encuentra hallazgos, se corrige y
+  # todas las activas vuelven a correr juntas como la siguiente iteración
+  # — no 3 iteraciones por dimensión.
 
 - id: construction_integral_audit [agéntico, rol: Auditor Integral]
   depende_de: [construction_audit]
@@ -246,9 +264,13 @@ Semánticas:
 ### `construction_audit` — auditoría por dimensión
 
 Las 4 dimensiones son sub-auditorías independientes, cada una con su propio
-checklist, todas bajo el rol Auditor (ver núcleo). Corren en paralelo
-(fan-out) cuando el proveedor lo soporta; los hallazgos de cualquiera de las
-4 cuentan igual para el tope de 3 iteraciones compartido.
+checklist, todas bajo el rol Auditor (ver núcleo). `audit_triage` decide
+cuáles se disparan para cada épica (`audit_functionality` y
+`audit_practices` siempre; `audit_security`/`audit_efficiency` solo si el
+diff real lo amerita — ver el paso `audit_triage` en el pipeline). Las
+dimensiones activas corren en paralelo (fan-out) cuando el proveedor lo
+soporta; los hallazgos de cualquiera de ellas cuentan igual para el tope de
+3 iteraciones compartido.
 
 #### `audit_functionality` — el código hace lo que la HU pide
 
@@ -344,11 +366,16 @@ vi. No hay funcionalidad construida que no esté respaldada por ninguna HU
 ## Extensión del CLI del núcleo
 
 `factory validate construction [--epic EPIC-N] [--dimension functionality|security|...]`
-— corre las verificaciones estructurales de `plan_audit` y de las 4
-dimensiones de `construction_audit` (incluyendo correr el test runner real
-del proyecto y revisar su exit code para `audit_functionality`), cruzando
-`docs/construction/plan/` con `docs/architecture/` y
-`docs/requirements/traceability.md`.
+— corre las verificaciones estructurales de `plan_audit` y de las dimensiones
+de `construction_audit` que `audit_triage` haya activado (incluyendo correr
+el test runner real del proyecto y revisar su exit code para
+`audit_functionality`), cruzando `docs/construction/plan/` con
+`docs/architecture/` y `docs/requirements/traceability.md`.
+
+`factory audit-triage --epic EPIC-N` — expone la misma heurística
+determinística de `audit_triage` como comando aislado, para que el usuario
+pueda ver/cuestionar qué dimensiones se activaron para una épica sin tener
+que leer el log completo.
 
 ## Manejo de errores / casos borde
 
@@ -367,8 +394,16 @@ del proyecto y revisar su exit code para `audit_functionality`), cruzando
   Construcción sin que quede como decisión explícita y trazable.
 - `audit_practices` encuentra sobreingeniería (verificación 9) pero
   `audit_functionality` no encuentra nada: la épica igual queda bloqueada
-  para esa iteración — las 4 dimensiones deben cerrar limpio, no alcanza con
-  que la funcionalidad esté bien si el código quedó sobre-diseñado.
+  para esa iteración — las dimensiones activas deben cerrar limpio, no
+  alcanza con que la funcionalidad esté bien si el código quedó
+  sobre-diseñado.
+- `audit_triage` decide incorrectamente excluir `audit_security` en una
+  épica que sí tocaba datos sensibles (heurística de diff falló): al no ser
+  perfecta, la heurística es intencionalmente conservadora — cualquier
+  archivo bajo una ruta típica de auth/permisos, o cualquier `TASK-N.M` de
+  rol `seguridad` en el plan, fuerza la activación aunque el diff parezca
+  menor. Si aun así se escapa un caso, queda registrado en el log con la
+  decisión tomada, así es auditable después.
 
 ## Testing
 
@@ -381,6 +416,11 @@ mockean), fixtures de árbol de documentos en `tmp_path`:
   (1–3, la única de las 4 dimensiones con checks estructurales mecánicos —
   `audit_practices`/`audit_security`/`audit_efficiency` son 100% semánticas,
   no tienen contraparte determinística que testear acá).
+- `test_audit_triage.py`: por cada heurística de activación (diff toca ruta
+  de auth, plan tiene `TASK-N.M` de rol `seguridad`, diff agrega loop
+  anidado/query nueva) un caso que confirma que activa la dimensión
+  correspondiente, y un caso donde ninguna heurística aplica y
+  `audit_security`/`audit_efficiency` quedan correctamente excluidas.
 
 ## Preguntas abiertas para specs futuros
 
