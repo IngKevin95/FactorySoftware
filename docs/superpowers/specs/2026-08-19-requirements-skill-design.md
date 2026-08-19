@@ -55,6 +55,57 @@ unidad de negocio.
   la trazabilidad histórica (una HU referenciada por un commit o un test
   viejo sigue siendo encontrable).
 
+## Pipeline de ejecución (usa el mecanismo transversal del núcleo)
+
+Sigue el formato de declaración de pasos definido en el spec del núcleo. La
+generación de HU por épica es el único paso con fan-out paralelizable: cada
+épica ya tiene su meta de negocio fijada por el paso anterior, así que
+redactar las HU de una épica no requiere ver las HU de las demás — candidato
+correcto para despacho paralelo. Épicas, en cambio, necesitan verse entre sí
+para no solaparse en alcance, por eso corre como paso único (no fan-out).
+
+```
+- id: prd
+  depende_de: []
+  fan_out: null
+  paralelizable: false
+
+- id: epics
+  depende_de: [prd]
+  fan_out: null
+  paralelizable: false
+  # una sola pasada que redacta TODAS las épicas juntas, así el agente
+  # puede repartir el alcance del PRD entre ellas sin solapes
+
+- id: hu_por_epica
+  depende_de: [epics]
+  fan_out: "una instancia por cada EPIC-N creada en el paso anterior"
+  paralelizable: true
+  # cada instancia solo recibe: el PRD, su propia EPIC-N.md, y el listado
+  # de ids de las demás épicas (para depende_de entre HU de distinta
+  # épica) — nunca el contenido completo de las otras épicas
+
+- id: traceability
+  depende_de: [hu_por_epica]
+  fan_out: null
+  paralelizable: false
+  # agrega: una fila por cada HU generada en el paso anterior (necesita
+  # ver el resultado completo de todas las instancias de fan-out)
+
+- id: audit_loop
+  depende_de: [traceability]
+  fan_out: null
+  paralelizable: false
+  # loop auditor-constructor del núcleo, hasta 3 iteraciones, después gate
+  # de aprobación humana explícita
+```
+
+Si el proveedor no soporta despacho paralelo de subagentes, `hu_por_epica`
+igual corre como pasos separados por épica (uno a la vez, cada uno logueado
+individualmente) — nunca colapsa en una sola pasada que redacte todas las HU
+de todas las épicas juntas, porque eso reintroduce el problema de contexto
+que el fan-out evita.
+
 ## Contenido de cada documento
 
 ### `PRD.md`
