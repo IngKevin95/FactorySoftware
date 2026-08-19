@@ -7,7 +7,7 @@ from pathlib import Path
 from factorysoftware.adapters.base import ProviderAdapter
 from factorysoftware.content import parse_content
 from factorysoftware.render import build_skill_map
-from factorysoftware.state import Manifest, ManifestFile, compute_hash, write_manifest
+from factorysoftware.state import Manifest, ManifestFile, compute_hash, read_manifest, write_manifest
 
 _VERSION = "0.1.0"
 
@@ -59,3 +59,51 @@ def install_all(
     )
     write_manifest(project_root, manifest)
     return manifest
+
+
+def update_all(
+    project_root: Path, content_dir: Path, adapters: list[ProviderAdapter]
+) -> tuple[Manifest, list[str]]:
+    existing = read_manifest(project_root)
+    existing_by_path = {f.path: f for f in existing.files} if existing else {}
+
+    all_files: list[ManifestFile] = []
+    warnings: list[str] = []
+
+    for content_path in sorted(content_dir.glob("*.md")):
+        content = parse_content(content_path)
+        skill_map = build_skill_map(content)
+        for adapter in adapters:
+            skill_ids = list(skill_map.keys())
+            paths = adapter.target_paths(project_root, skill_ids)
+            by_path: dict[Path, list[str]] = {}
+            for sid in skill_ids:
+                by_path.setdefault(paths[sid], []).append(sid)
+
+            for path, sids in by_path.items():
+                rel = str(path.relative_to(project_root))
+                sids_sorted = sorted(sids)
+                rendered = "\n\n".join(adapter.render(sid, skill_map[sid]) for sid in sids_sorted)
+
+                prior = existing_by_path.get(rel)
+                if prior is not None and path.exists():
+                    on_disk_hash = compute_hash(path.read_text(encoding="utf-8"))
+                    if on_disk_hash != prior.hash:
+                        warnings.append(f"{rel} (skill(s): {','.join(sids_sorted)}) fue editado a mano, no se sobreescribe")
+                        all_files.append(prior)
+                        continue
+
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(rendered, encoding="utf-8")
+                all_files.append(
+                    ManifestFile(path=rel, hash=compute_hash(rendered), skill_id=",".join(sids_sorted))
+                )
+
+    manifest = Manifest(
+        version=_VERSION,
+        installed_at=datetime.now(timezone.utc).isoformat(),
+        providers=[a.name for a in adapters],
+        files=all_files,
+    )
+    write_manifest(project_root, manifest)
+    return manifest, warnings

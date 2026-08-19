@@ -94,3 +94,37 @@ def test_install_all_skips_adapter_that_fails_to_write(tmp_path: Path, capsys):
     assert manifest.providers == ["unwritable", "multi"]
     assert (tmp_path / "requirements-prd.md").exists()  # multi still wrote its files
     assert "unwritable" in capsys.readouterr().err
+
+
+from factorysoftware.installer import update_all
+
+
+def test_update_all_overwrites_untouched_files(tmp_path: Path):
+    content_dir = tmp_path / "content"
+    content_dir.mkdir()
+    (content_dir / "requirements.md").write_text(_FIXTURE_PHASE, encoding="utf-8")
+    install_all(tmp_path, content_dir, adapters=[_MultiFileAdapter()])
+
+    (content_dir / "requirements.md").write_text(
+        _FIXTURE_PHASE.replace("Hacé el PRD.", "Hacé el PRD actualizado."), encoding="utf-8"
+    )
+    manifest, warnings = update_all(tmp_path, content_dir, adapters=[_MultiFileAdapter()])
+
+    assert "Hacé el PRD actualizado." in (tmp_path / "requirements-prd.md").read_text(encoding="utf-8")
+    assert warnings == []
+
+
+def test_update_all_skips_user_edited_files(tmp_path: Path):
+    content_dir = tmp_path / "content"
+    content_dir.mkdir()
+    (content_dir / "requirements.md").write_text(_FIXTURE_PHASE, encoding="utf-8")
+    install_all(tmp_path, content_dir, adapters=[_MultiFileAdapter()])
+
+    (tmp_path / "requirements-prd.md").write_text("edición manual del usuario", encoding="utf-8")
+    (content_dir / "requirements.md").write_text(
+        _FIXTURE_PHASE.replace("Hacé el PRD.", "Hacé el PRD actualizado."), encoding="utf-8"
+    )
+    manifest, warnings = update_all(tmp_path, content_dir, adapters=[_MultiFileAdapter()])
+
+    assert (tmp_path / "requirements-prd.md").read_text(encoding="utf-8") == "edición manual del usuario"
+    assert any("requirements-prd" in w for w in warnings)
