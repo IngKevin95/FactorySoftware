@@ -12,9 +12,12 @@ Requerimientos y Arquitectura:
 Content pack que toma los contratos congelados de Arquitectura (ADRs,
 `data-model.md`, `API-N.md`, `SCREEN-N.md`) y las HU de Requerimientos, y
 construye el código real, épica por épica, con planificación de tareas por
-rol (frontend/backend/data/automatizaciones/mobile/seguridad/...), ejecución
-paralela aislada por rama/worktree, TDD por tarea, y gate de aprobación vía
-Pull Request siguiendo el Git Flow del proyecto.
+rol (catálogo base + condicional: frontend/backend/data, más seguridad/
+automatizaciones/mobile según lo que cada HU dispare), ejecución paralela
+aislada por rama/worktree, TDD por tarea con gate mecánico de verificación,
+auditoría por 4 dimensiones independientes (funcionalidad, buenas
+prácticas, seguridad, eficiencia), y gate de aprobación vía Pull Request
+siguiendo el Git Flow del proyecto.
 
 ## No-objetivos
 
@@ -57,15 +60,39 @@ Frontmatter: `id` (`EPIC-N`), `estado`. Cuerpo: lista de tareas.
 
 Cada tarea:
 - `id`: `TASK-N.M`
-- `rol`: `frontend` | `backend` | `data` | `automatizaciones` | `mobile` |
-  `seguridad` | ... (el conjunto real de roles lo determina la naturaleza
-  del proyecto y el stack elegido en Arquitectura, no una lista fija de la
-  skill)
+- `rol`: ver catálogo de roles abajo
 - `implementa`: ids de `API-N`/`SCREEN-N`/entidad de `data-model.md` que
   esta tarea construye
 - `depende_de`: ids de otras `TASK-N.M` (dentro o fuera de la misma épica)
 - `descripcion`: qué hace concretamente
 - `estado`: pendiente/en progreso/completa/bloqueada
+
+### Catálogo de roles de construcción (por slice)
+
+`task_planning` arma cada slice (una HU que toca pantalla + endpoint + dato)
+con este catálogo, no roles libres:
+
+**Base — aparecen cuando la HU toca esa capa:**
+- `backend`: implementa el `API-N.md` (lógica de negocio, validaciones,
+  persistencia).
+- `data`: migración/schema de la entidad en `data-model.md`. Se fusiona con
+  `backend` en la misma tarea si el cambio de datos es trivial (un campo);
+  se separa en tarea propia si no lo es (así puede correr en paralelo
+  mientras `backend` escribe la lógica contra el contrato ya conocido).
+- `frontend`: refina el prototipo de `SCREEN-N.md` (rama
+  `architecture/ui-prototype`) a producción y lo conecta a la API.
+
+**Condicionales — solo si la HU concreta los dispara, no en cada slice:**
+- `seguridad`: la HU toca autenticación, autorización o datos sensibles.
+- `automatizaciones`: hay jobs async, integraciones externas, webhooks.
+- `mobile`: el proyecto tiene cliente mobile y la HU lo requiere.
+
+Este catálogo cubre **quién construye**. Quién **audita** lo construido es
+un catálogo distinto — ver "Auditoría por dimensión" más abajo. La
+coordinación de Git (ramas, worktrees, PR) no es un rol agéntico: son los
+pasos mecánicos `branch_setup`/`worktree_integration`/`pr_gate` del
+pipeline, comandos de git determinísticos sin necesidad de juicio de un
+agente.
 
 ## Rama y aislamiento de trabajo paralelo
 
@@ -95,6 +122,15 @@ de que la unidad que construye tenga su propia red de tests unitarios antes
 de darse por completa. QA (fase futura) no reescribe estos tests; los toma
 como base y agrega integración, e2e, y la auditoría de cobertura total
 contra `traceability.md`.
+
+**El gate de TDD es doble, no confía solo en lo que el agente reporta**: el
+agente que ejecuta `task_execution` hace el ciclo rojo-verde-refactor él
+mismo, en línea, mientras construye. Pero que un agente *diga* "los tests
+pasan" no es prueba — por eso `audit_functionality` (ver "Auditoría por
+dimensión" más abajo) vuelve a correr el test runner real del proyecto y
+revisa su exit code de forma mecánica, dentro de `construction_audit`. Un
+agente que se equivoca o miente sobre el estado de los tests queda
+atrapado ahí, no llega al PR.
 
 ## Pipeline de ejecución (usa el mecanismo transversal del núcleo)
 
@@ -157,10 +193,14 @@ del núcleo (subagente paralelo si el proveedor lo soporta, serie si no).
 
 - id: construction_audit [agéntico, rol: Auditor]
   depende_de: [worktree_integration]
-  fan_out: "una instancia por Épica"
+  fan_out: "una instancia por Épica, y dentro de cada Épica, una instancia por dimensión: audit_functionality, audit_practices, audit_security, audit_efficiency"
   paralelizable: true
-  # código cumple contratos, tests unitarios pasan, reglas de Beck
-  # respetadas, traceability.md actualizado
+  # las 4 dimensiones son independientes entre sí (revisar seguridad no
+  # necesita ver el resultado de revisar eficiencia) — corren en paralelo
+  # cuando el proveedor lo soporta, ver "Auditoría por dimensión" abajo.
+  # El tope de 3 iteraciones del núcleo es compartido entre las 4: si
+  # cualquiera encuentra hallazgos, se corrige y las 4 vuelven a correr
+  # juntas como la siguiente iteración — no 3 iteraciones por dimensión.
 
 - id: construction_integral_audit [agéntico, rol: Auditor Integral]
   depende_de: [construction_audit]
@@ -203,12 +243,20 @@ Semánticas:
    tarea está fragmentada en abstracciones prematuras, ninguna tarea agrupa
    responsabilidades no relacionadas.
 
-### `construction_audit`
+### `construction_audit` — auditoría por dimensión
+
+Las 4 dimensiones son sub-auditorías independientes, cada una con su propio
+checklist, todas bajo el rol Auditor (ver núcleo). Corren en paralelo
+(fan-out) cuando el proveedor lo soporta; los hallazgos de cualquiera de las
+4 cuentan igual para el tope de 3 iteraciones compartido.
+
+#### `audit_functionality` — el código hace lo que la HU pide
 
 Estructurales (mecánicas):
 
 1. Todos los tests unitarios de la épica pasan (se corre el test runner
-   real del stack, no se infiere).
+   real del stack, no se infiere — este es el chequeo mecánico del gate de
+   TDD descrito arriba).
 2. Toda `TASK-N.M` del plan de la épica tiene cambios de código
    correspondientes (sin tareas marcadas completas sin diff real).
 3. `traceability.md` de Requerimientos queda con una columna "Implementado"
@@ -220,11 +268,53 @@ Semánticas:
    sin drift silencioso (si el código necesita desviarse del contrato, eso
    es un hallazgo que se escala, no un ajuste que se hace y se documenta
    después).
-5. Reglas de Beck respetadas: sin abstracciones no pedidas, sin
-   duplicación, sin implementaciones a medias.
-6. Ninguna acción de riesgo crítico (seguridad, pérdida de datos, acciones
-   irreversibles) se tomó sin pasar por el mecanismo `advisor_block` del
-   núcleo.
+5. Un lector humano reconocería el criterio de aceptación Given/When/Then de
+   cada HU cumplido en el comportamiento real, no solo en que los tests
+   pasan (un test mal escrito puede pasar sin probar nada útil).
+
+#### `audit_practices` — buenas prácticas, aplicando la escalera del `CLAUDE.md` del proyecto
+
+Semántica, en este orden — se detiene en el primer nivel que ya resuelve el
+caso, igual que la regla del propio `CLAUDE.md`:
+
+6. **Reglas de Beck (filtro primario)**: Passes Tests (ya cubierto por
+   `audit_functionality`), Reveals Intention, No Duplication, Fewest
+   Elements — sin interfaces/clases abstractas sin una segunda
+   implementación real.
+7. **SOLID + GRASP**, solo si la lógica de la tarea realmente lo amerita
+   (no se exige forzar principios donde el código simple ya alcanza).
+8. **Patrones de diseño (GoF)**, solo si resuelven un problema concreto y
+   recurrente presente en el código — nunca forzados porque "es lo
+   correcto" en abstracto.
+9. **Detección de sobreingeniería** (el sentido inverso de 6–8): abstracción
+   sin segunda implementación real, capa de indirección que nadie necesita
+   todavía, config para un valor que nunca cambia, patrón aplicado sin un
+   problema recurrente real detrás. Un hallazgo acá no es "está mal
+   escrito", es "hay más código del que el problema pedía" — el auditor
+   debe poder señalar la simplificación concreta, no solo objetar.
+
+#### `audit_security` — seguridad de lo que esta épica construyó
+
+10. Validación de entradas en todo punto que cruza un límite de confianza
+    (request de API, input de formulario) — ninguna confía ciegamente en
+    datos externos.
+11. Autenticación/autorización correcta si la HU la requiere (según el
+    anexo funcional de Requerimientos y el contrato de `API-N.md`).
+12. Sin secretos/credenciales hardcodeados ni expuestos en logs.
+13. Ninguna acción de riesgo crítico (seguridad, pérdida de datos, acciones
+    irreversibles) se tomó sin pasar por el mecanismo `advisor_block` del
+    núcleo.
+
+#### `audit_efficiency` — uso idiomático del stack y costo por función
+
+14. El código usa el framework/stack elegido en la ADR de forma idiomática
+    (no reimplementa a mano algo que el framework ya resuelve, no "pelea"
+    contra sus convenciones).
+15. Complejidad y costo razonables por función respecto al problema real que
+    resuelve (sin recorridos redundantes evidentes, sin problema N+1 de
+    queries, sin trabajo repetido que se pudo cachear/evitar con una
+    solución simple) — un hallazgo acá viene con la alternativa concreta
+    más eficiente, no solo la objeción.
 
 ### `plan_integral_audit` (rol: Auditor Integral, contra Arquitectura)
 
@@ -253,9 +343,10 @@ vi. No hay funcionalidad construida que no esté respaldada por ninguna HU
 
 ## Extensión del CLI del núcleo
 
-`factory validate construction [--epic EPIC-N]` — corre las verificaciones
-estructurales de `plan_audit` y `construction_audit` (incluyendo correr el
-test runner real del proyecto y revisar su exit code), cruzando
+`factory validate construction [--epic EPIC-N] [--dimension functionality|security|...]`
+— corre las verificaciones estructurales de `plan_audit` y de las 4
+dimensiones de `construction_audit` (incluyendo correr el test runner real
+del proyecto y revisar su exit code para `audit_functionality`), cruzando
 `docs/construction/plan/` con `docs/architecture/` y
 `docs/requirements/traceability.md`.
 
@@ -271,9 +362,13 @@ test runner real del proyecto y revisar su exit code), cruzando
   dependencia en el plan, no se resuelve el conflicto "a ciegas" con
   `git merge -X ours` ni similar).
 - El código necesita desviarse de un contrato ya aprobado en Arquitectura:
-  hallazgo bloqueante de la verificación semántica 4, se escala con la
-  propuesta de cambio de contrato — no se cambia `API-N.md` desde
+  hallazgo bloqueante de `audit_functionality` (verificación 4), se escala
+  con la propuesta de cambio de contrato — no se cambia `API-N.md` desde
   Construcción sin que quede como decisión explícita y trazable.
+- `audit_practices` encuentra sobreingeniería (verificación 9) pero
+  `audit_functionality` no encuentra nada: la épica igual queda bloqueada
+  para esa iteración — las 4 dimensiones deben cerrar limpio, no alcanza con
+  que la funcionalidad esté bien si el código quedó sobre-diseñado.
 
 ## Testing
 
@@ -282,8 +377,10 @@ proyecto objetivo dentro de los tests del propio `factorysoftware` — se
 mockean), fixtures de árbol de documentos en `tmp_path`:
 
 - `test_validate_construction.py`: casos positivos y un caso negativo por
-  cada verificación estructural de `plan_audit` (1–3) y `construction_audit`
-  (1–3).
+  cada verificación estructural de `plan_audit` (1–3) y de `audit_functionality`
+  (1–3, la única de las 4 dimensiones con checks estructurales mecánicos —
+  `audit_practices`/`audit_security`/`audit_efficiency` son 100% semánticas,
+  no tienen contraparte determinística que testear acá).
 
 ## Preguntas abiertas para specs futuros
 
