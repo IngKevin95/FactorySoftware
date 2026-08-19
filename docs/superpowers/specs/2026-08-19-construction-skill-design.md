@@ -107,7 +107,7 @@ del núcleo (subagente paralelo si el proveedor lo soporta, serie si no).
   # cada instancia solo ve las HU de su propia épica y los API-N/SCREEN-N
   # que las implementan — arma el grafo de tareas por rol
 
-- id: plan_audit [agéntico, loop del núcleo]
+- id: plan_audit [agéntico, rol: Auditor]
   depende_de: [task_planning]
   fan_out: null
   paralelizable: false
@@ -116,8 +116,16 @@ del núcleo (subagente paralelo si el proveedor lo soporta, serie si no).
   # datos al mismo tiempo), algo que ninguna instancia aislada del paso
   # anterior puede ver por sí sola
 
-- id: branch_setup [mecánico]
+- id: plan_integral_audit [agéntico, rol: Auditor Integral]
   depende_de: [plan_audit]
+  fan_out: null
+  paralelizable: false
+  # valida los planes contra Arquitectura completa: todo ADR/API/pantalla
+  # relevante queda cubierto por al menos una tarea, ninguna tarea inventa
+  # trabajo sin respaldo en un API-N/SCREEN-N/entidad real (ver checklist)
+
+- id: branch_setup [mecánico]
+  depende_de: [plan_integral_audit]
   fan_out: "una instancia por Épica con plan aprobado"
   paralelizable: true
   # crea feature/EPIC-N-<slug> desde develop
@@ -135,15 +143,23 @@ del núcleo (subagente paralelo si el proveedor lo soporta, serie si no).
   paralelizable: true
   # merge de los worktrees de tareas completas a la rama de la épica
 
-- id: construction_audit [agéntico, loop del núcleo]
+- id: construction_audit [agéntico, rol: Auditor]
   depende_de: [worktree_integration]
   fan_out: "una instancia por Épica"
   paralelizable: true
   # código cumple contratos, tests unitarios pasan, reglas de Beck
   # respetadas, traceability.md actualizado
 
-- id: pr_gate [mecánico + pregunta al usuario]
+- id: construction_integral_audit [agéntico, rol: Auditor Integral]
   depende_de: [construction_audit]
+  fan_out: "una instancia por Épica"
+  paralelizable: true
+  # última pasada antes del PR: el código de la épica sigue fiel a la
+  # intención de negocio de sus HU y a las decisiones de las ADR que le
+  # aplican, no solo a la letra del contrato técnico (ver checklist)
+
+- id: pr_gate [mecánico + pregunta al usuario]
+  depende_de: [construction_integral_audit]
   fan_out: "una instancia por Épica"
   paralelizable: true
   # abre PR de feature/EPIC-N-... a develop (merge commit, --no-ff);
@@ -197,6 +213,31 @@ Semánticas:
 6. Ninguna acción de riesgo crítico (seguridad, pérdida de datos, acciones
    irreversibles) se tomó sin pasar por el mecanismo `advisor_block` del
    núcleo.
+
+### `plan_integral_audit` (rol: Auditor Integral, contra Arquitectura)
+
+i. Todo `API-N`/`SCREEN-N`/entidad de `data-model.md` relevante para las
+   épicas en curso queda cubierto por al menos una `TASK-N.M` — un contrato
+   de Arquitectura sin ninguna tarea que lo construya es un hallazgo
+   bloqueante.
+ii. Ninguna tarea planifica trabajo que no está respaldado por un
+   `API-N`/`SCREEN-N`/entidad/ADR real (alcance inventado en la
+   planificación).
+iii. Las ADR fundacionales (stack, artefactos/método de despliegue) están
+   reflejadas en cómo se plantean las tareas (ej. si la ADR de despliegue
+   elige contenedores, ninguna tarea asume un modelo de despliegue
+   distinto).
+
+### `construction_integral_audit` (rol: Auditor Integral, contra Arquitectura + Requerimientos)
+
+iv. El código de la épica sigue siendo fiel a la intención de negocio de
+   cada HU que implementa (no solo pasa los tests, sino que un lector
+   humano reconocería el criterio de aceptación Given/When/Then cumplido en
+   el comportamiento real).
+v. Ninguna ADR quedó parcialmente aplicada (ej. la ADR de despliegue exige
+   configuración de contenedor y el código no la incluye).
+vi. No hay funcionalidad construida que no esté respaldada por ninguna HU
+   ni ADR (scope creep en código, no solo en documentación).
 
 ## Extensión del CLI del núcleo
 
