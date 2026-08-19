@@ -7,14 +7,23 @@ from pathlib import Path
 import yaml
 
 
-def _parse_frontmatter(text: str) -> tuple[dict, str]:
-    """Parse YAML frontmatter. Returns (data_dict, body_text)."""
+def _parse_frontmatter(text: str) -> tuple[dict | None, str | None]:
+    """
+    Parse YAML frontmatter. Returns (data_dict, body_text) on success,
+    or (None, error_message) on parse failure.
+    """
     if not text.startswith("---"):
         return {}, text
-    second = text.index("---", 3)
-    fm = yaml.safe_load(text[3:second]) or {}
-    body = text[second + 3:].lstrip("\n")
-    return fm, body
+    try:
+        second = text.index("---", 3)
+    except ValueError:
+        return None, "missing closing '---' in frontmatter"
+    try:
+        fm = yaml.safe_load(text[3:second]) or {}
+        body = text[second + 3:].lstrip("\n")
+        return fm, body
+    except yaml.YAMLError as e:
+        return None, f"invalid YAML in frontmatter: {e}"
 
 
 def _has_gwt(body: str) -> bool:
@@ -49,19 +58,21 @@ def _detect_circular(deps: dict[str, list[str]]) -> list[str]:
     return sorted(circular)
 
 
-def _parse_traceability_ids(text: str) -> list[str]:
-    """Extract HU ids from the traceability table first column."""
-    ids: list[str] = []
+def _parse_traceability_ids(text: str) -> list[tuple[str, str]]:
+    """Extract (HU id, Epic id) pairs from the traceability table rows."""
+    rows: list[tuple[str, str]] = []
     for line in text.splitlines():
         parts = [c.strip() for c in line.split("|")]
-        if len(parts) >= 2 and re.match(r"^HU-\d+\.\d+$", parts[1]):
-            ids.append(parts[1])
-    return ids
+        if len(parts) >= 3 and re.match(r"^HU-\d+\.\d+$", parts[1]):
+            hu_id = parts[1]
+            epic_id = parts[2]
+            rows.append((hu_id, epic_id))
+    return rows
 
 
 def validate_requirements(project_root: Path, log_path: Path) -> list[str]:
     """
-    Run structural checks 1-7 on docs/requirements/ and .factory/log.jsonl.
+    Run structural checks 1-8 on docs/requirements/ and .factory/log.jsonl.
     Returns list of error strings; empty = clean.
     """
     docs = project_root / "docs" / "requirements"
@@ -75,14 +86,20 @@ def validate_requirements(project_root: Path, log_path: Path) -> list[str]:
         for f in stories_dir.glob("HU-*.md"):
             if retiradas_dir in f.parents:
                 continue
-            fm, _ = _parse_frontmatter(f.read_text(encoding="utf-8"))
+            fm, err = _parse_frontmatter(f.read_text(encoding="utf-8"))
+            if fm is None:
+                errors.append(f"Parse error in {f.relative_to(project_root)}: {err}")
+                continue
             hu_files[fm.get("id", f.stem)] = f
 
     # -- Collect all HU files including retired (for check 7) --
     all_hu_ids: set[str] = set(hu_files)
     if retiradas_dir.exists():
         for f in retiradas_dir.glob("HU-*.md"):
-            fm, _ = _parse_frontmatter(f.read_text(encoding="utf-8"))
+            fm, err = _parse_frontmatter(f.read_text(encoding="utf-8"))
+            if fm is None:
+                errors.append(f"Parse error in {f.relative_to(project_root)}: {err}")
+                continue
             all_hu_ids.add(fm.get("id", f.stem))
 
     # -- Collect epic files and the HU ids they list --
@@ -92,34 +109,36 @@ def validate_requirements(project_root: Path, log_path: Path) -> list[str]:
     if epics_dir.exists():
         for f in epics_dir.glob("EPIC-*.md"):
             fm, body = _parse_frontmatter(f.read_text(encoding="utf-8"))
+            if fm is None:
+                errors.append(f"Parse error in {f.relative_to(project_root)}: {body}")
+                continue
             eid = fm.get("id", f.stem)
             epic_files[eid] = f
-            epic_hu_lists[eid] = re.findall(r"HU-\d+\.\d+", body)
+            epic_hu_lists[eid] = re.findall(r"HU-\d+\.\d+", body) if body else []
 
-    # -- Collect traceability rows --
+    # -- Collect traceability rows (hu_id, epic_id pairs) --
     trace_path = docs / "traceability.md"
-    trace_ids: list[str] = []
+    trace_rows: list[tuple[str, str]] = []
     if trace_path.exists():
-        trace_ids = _parse_traceability_ids(trace_path.read_text(encoding="utf-8"))
+        trace_rows = _parse_traceability_ids(trace_path.read_text(encoding="utf-8"))
 
     # -- Collect flujo files --
     flujos_dir = docs / "flujos"
     flujo_data: dict[str, list[str]] = {}
     if flujos_dir.exists():
         for f in flujos_dir.glob("FLUJO-*.md"):
-            fm, _ = _parse_frontmatter(f.read_text(encoding="utf-8"))
+            fm, err = _parse_frontmatter(f.read_text(encoding="utf-8"))
+            if fm is None:
+                errors.append(f"Parse error in {f.relative_to(project_root)}: {err}")
+                continue
             flujo_data[fm.get("id", f.stem)] = fm.get("hu") or []
 
-    # Check 1: every epic referenced via traceability row HU has a file in epics/
-    for hu_id in trace_ids:
-        f = stories_dir / f"{hu_id}.md"
-        if f.exists():
-            fm, _ = _parse_frontmatter(f.read_text(encoding="utf-8"))
-            epic_ref = fm.get("epica", "")
-            if epic_ref and epic_ref not in epic_files:
-                errors.append(
-                    f"Check 1: epic '{epic_ref}' referenced by '{hu_id}' has no file in epics/"
-                )
+    # Check 1: every epic referenced in a traceability row has a file in epics/
+    for hu_id, epic_ref in trace_rows:
+        if epic_ref and epic_ref not in epic_files:
+            errors.append(
+                f"Check 1: epic '{epic_ref}' in traceability row for '{hu_id}' has no file in epics/"
+            )
 
     # Check 2a: every HU listed in an epic has a file in stories/
     for eid, hu_list in epic_hu_lists.items():
@@ -140,7 +159,10 @@ def validate_requirements(project_root: Path, log_path: Path) -> list[str]:
     # Check 3: depende_de ids exist + circular detection
     deps: dict[str, list[str]] = {}
     for hu_id, f in hu_files.items():
-        fm, _ = _parse_frontmatter(f.read_text(encoding="utf-8"))
+        fm, err = _parse_frontmatter(f.read_text(encoding="utf-8"))
+        if fm is None:
+            errors.append(f"Parse error in {f.relative_to(project_root)}: {err}")
+            continue
         dep_list: list[str] = fm.get("depende_de") or []
         deps[hu_id] = dep_list
         for dep in dep_list:
@@ -153,15 +175,30 @@ def validate_requirements(project_root: Path, log_path: Path) -> list[str]:
 
     # Check 4: every HU has at least one GWT criterion
     for hu_id, f in hu_files.items():
-        _, body = _parse_frontmatter(f.read_text(encoding="utf-8"))
+        fm, body = _parse_frontmatter(f.read_text(encoding="utf-8"))
+        if fm is None:
+            # Already reported parse error above, skip GWT check for this file
+            continue
         if not _has_gwt(body):
             errors.append(
                 f"Check 4: HU '{hu_id}' has no Given/When/Then acceptance criterion"
             )
 
-    # Check 5: traceability has exactly one row per non-retired HU, no orphans
+    # Check 5: traceability has exactly one row per non-retired HU, no orphans + detect duplicates
     hu_set = set(hu_files)
-    trace_set = set(trace_ids)
+    trace_hu_ids = [hu_id for hu_id, _ in trace_rows]
+    trace_set = set(trace_hu_ids)
+
+    # Check for duplicate rows
+    from collections import Counter
+    hu_counts = Counter(trace_hu_ids)
+    for hu_id, count in hu_counts.items():
+        if count > 1:
+            errors.append(
+                f"Check 5: traceability.md has {count} rows for HU '{hu_id}', expected exactly 1"
+            )
+
+    # Check for missing and orphan rows
     for hu_id in hu_set - trace_set:
         errors.append(f"Check 5: HU '{hu_id}' has no row in traceability.md")
     for tid in trace_set - hu_set:
@@ -192,5 +229,17 @@ def validate_requirements(project_root: Path, log_path: Path) -> list[str]:
                 errors.append(
                     f"Check 7: FLUJO '{flujo_id}' references HU '{hu_id}' which does not exist"
                 )
+
+    # Check 8: every HU has a non-empty epica field
+    for hu_id, f in hu_files.items():
+        fm, err = _parse_frontmatter(f.read_text(encoding="utf-8"))
+        if fm is None:
+            # Already reported parse error above
+            continue
+        epica = fm.get("epica", "")
+        if not epica or not str(epica).strip():
+            errors.append(
+                f"Check 8: HU '{hu_id}' has no epica assigned (epica must not be empty)"
+            )
 
     return errors

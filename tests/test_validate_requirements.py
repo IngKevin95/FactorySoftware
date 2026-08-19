@@ -213,3 +213,91 @@ def test_happy_path(docs, log_path):
            "| HU-1.1 | EPIC-1 | draft | _p_ | _p_ |\n")
     errors = validate_requirements(docs.parent.parent, log_path)
     assert errors == []
+
+
+# --- Finding 1: Check 1 validates traceability row's epic column directly ---
+
+def test_check1_validates_traceability_epic_not_story_file(docs, log_path):
+    """Traceability row references non-existent epic even if story file's epica is valid."""
+    _write(docs / "epics" / "EPIC-1.md",
+           _fm({"id": "EPIC-1", "estado": "draft", "objetivo_prd": "O1"},
+               "## HUs\n- HU-1.1\n"))
+    _write(docs / "stories" / "HU-1.1.md",
+           _fm({"id": "HU-1.1", "epica": "EPIC-1", "estado": "draft",
+                "prioridad": "alta", "depende_de": []},
+               "**Given** X **When** Y **Then** Z"))
+    # Traceability row says EPIC-9 (doesn't exist), but story file says EPIC-1
+    _write(docs / "traceability.md",
+           "| HU | Epica | Estado | CP | CA |\n"
+           "|----|-------|--------|----|----|\n"
+           "| HU-1.1 | EPIC-9 | draft | _p_ | _p_ |\n")
+    errors = validate_requirements(docs.parent.parent, log_path)
+    # Must flag EPIC-9 from traceability row, not trust story file's EPIC-1
+    assert any("EPIC-9" in e and "traceability" in e.lower() for e in errors)
+
+
+# --- Finding 2: Check 5 detects duplicate traceability rows ---
+
+def test_check5_detects_duplicate_rows(docs, log_path):
+    """Traceability with two rows for same HU should be flagged."""
+    _write(docs / "epics" / "EPIC-1.md",
+           _fm({"id": "EPIC-1", "estado": "draft", "objetivo_prd": "O1"},
+               "## HUs\n- HU-1.1\n"))
+    _write(docs / "stories" / "HU-1.1.md",
+           _fm({"id": "HU-1.1", "epica": "EPIC-1", "estado": "draft",
+                "prioridad": "alta", "depende_de": []},
+               "**Given** X **When** Y **Then** Z"))
+    # Two rows for HU-1.1
+    _write(docs / "traceability.md",
+           "| HU | Epica | Estado | CP | CA |\n"
+           "|----|-------|--------|----|----|\n"
+           "| HU-1.1 | EPIC-1 | draft | _p_ | _p_ |\n"
+           "| HU-1.1 | EPIC-1 | draft | _p_ | _p_ |\n")
+    errors = validate_requirements(docs.parent.parent, log_path)
+    assert any("HU-1.1" in e and "2 rows" in e for e in errors)
+
+
+# --- Finding 3: Check 8 detects empty/missing epica ---
+
+def test_check8_missing_epica(docs, log_path):
+    """HU with missing epica field should be flagged."""
+    _write(docs / "epics" / "EPIC-1.md",
+           _fm({"id": "EPIC-1", "estado": "draft", "objetivo_prd": "O1"},
+               "## HUs\n- HU-1.1\n"))
+    _write(docs / "stories" / "HU-1.1.md",
+           _fm({"id": "HU-1.1", "estado": "draft",
+                "prioridad": "alta", "depende_de": []},
+               "**Given** X **When** Y **Then** Z"))
+    errors = validate_requirements(docs.parent.parent, log_path)
+    assert any("HU-1.1" in e and "epica" in e.lower() for e in errors)
+
+
+def test_check8_empty_epica(docs, log_path):
+    """HU with empty epica field should be flagged."""
+    _write(docs / "epics" / "EPIC-1.md",
+           _fm({"id": "EPIC-1", "estado": "draft", "objetivo_prd": "O1"},
+               "## HUs\n- HU-1.1\n"))
+    _write(docs / "stories" / "HU-1.1.md",
+           _fm({"id": "HU-1.1", "epica": "", "estado": "draft",
+                "prioridad": "alta", "depende_de": []},
+               "**Given** X **When** Y **Then** Z"))
+    errors = validate_requirements(docs.parent.parent, log_path)
+    assert any("HU-1.1" in e and "epica" in e.lower() for e in errors)
+
+
+# --- Finding 4: Graceful error handling for malformed frontmatter ---
+
+def test_malformed_frontmatter_missing_closing_delimiter(docs, log_path):
+    """File with missing closing --- should return error, not crash."""
+    _write(docs / "epics" / "EPIC-1.md",
+           "---\nid: EPIC-1\nestado: draft\n")  # Missing closing ---
+    errors = validate_requirements(docs.parent.parent, log_path)
+    assert any("Parse error" in e and "EPIC-1" in e for e in errors)
+
+
+def test_malformed_frontmatter_invalid_yaml(docs, log_path):
+    """File with invalid YAML should return error, not crash."""
+    _write(docs / "stories" / "HU-1.1.md",
+           "---\nid: HU-1.1\ninvalid: [unclosed bracket\n---\n")
+    errors = validate_requirements(docs.parent.parent, log_path)
+    assert any("Parse error" in e and "HU-1.1" in e for e in errors)
