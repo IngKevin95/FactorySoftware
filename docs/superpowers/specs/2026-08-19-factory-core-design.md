@@ -246,6 +246,57 @@ auditoría automática antes de pedirle al usuario que apruebe:
    por cada spec de fase) sigue aplicando después de que el loop cierra
    limpio.
 
+## Pipeline de pasos agénticos (transversal, obligatorio en todo proveedor)
+
+Ninguna fase se ejecuta como una sola pasada monolítica. Cada spec de
+contenido de fase debe declarar su trabajo como una secuencia de **pasos**
+con dependencias explícitas, y algunos pasos pueden tener **fan-out**
+(múltiples instancias independientes del mismo paso, una por elemento de una
+colección — ej. "una HU por cada Épica"). Esto es obligatorio en los 5
+proveedores, no una optimización opcional: el valor no es solo eficiencia de
+tokens, es que cada paso queda como una unidad de trabajo separada, auditable
+y con contexto acotado (un agente que solo redacta las HU de una épica nunca
+carga en su contexto las HU de las otras épicas).
+
+### Declaración de pasos
+
+Cada spec de fase incluye una lista de pasos con esta forma:
+
+```
+- id: <nombre>
+  depende_de: [<ids de pasos previos>] | []
+  fan_out: null | "<descripción de la colección a iterar>"
+  paralelizable: true | false
+```
+
+Un paso con `fan_out` no nulo y `paralelizable: true` es candidato a
+despacharse como N instancias independientes en paralelo — pero solo si el
+paso además es semánticamente independiente entre elementos (dos instancias
+del mismo paso no deben necesitar verse entre sí para producir un resultado
+coherente; si lo necesitan, `paralelizable: false` aunque tenga fan-out, y se
+ejecuta en serie, una instancia a la vez).
+
+### Regla de despacho (la misma en los 5 proveedores)
+
+1. Si el proveedor soporta despachar agentes/subagentes independientes con
+   ejecución concurrente (ej. el `Agent` tool de Claude Code lanzando varias
+   invocaciones en un mismo mensaje), los pasos `paralelizable: true` con
+   fan-out se despachan como un agente independiente por instancia,
+   corriendo en paralelo.
+2. Si el proveedor no soporta despacho concurrente de subagentes, el mismo
+   paso se ejecuta igual — instancia por instancia — pero en serie, dentro
+   de la misma sesión o invocando el mecanismo de subagente síncrono que el
+   proveedor tenga, uno a la vez.
+3. Pasos sin fan-out o marcados `paralelizable: false` siempre se ejecutan
+   como un único paso, respetando el orden de `depende_de` (nunca arranca un
+   paso antes de que todos sus `depende_de` hayan cerrado).
+4. Cada paso, y cada instancia de un paso con fan-out, se loguea al empezar
+   y al terminar vía
+   `factory log pipeline_step '{"phase": ..., "step_id": ..., "fan_out_index": ...|null, "mode": "parallel"|"serial", "estado": "iniciado"|"completado"}'`
+   — así `factory status` puede reconstruir qué modo de ejecución se usó
+   realmente en cada corrida, útil para comparar eficiencia entre
+   proveedores.
+
 ## Manejo de errores
 
 - `update`/`uninstall` nunca borran ni sobreescriben un archivo cuyo hash no
