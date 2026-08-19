@@ -64,6 +64,15 @@ def test_install_gitflow_hook_registers_in_settings(tmp_path: Path):
     settings = json.loads(settings_path.read_text(encoding="utf-8"))
     pretooluse = settings["hooks"]["PreToolUse"]
     assert any(entry["matcher"] == "Bash" for entry in pretooluse)
+    # Verify complete entry structure
+    bash_entry = next(e for e in pretooluse if e["matcher"] == "Bash")
+    assert "hooks" in bash_entry
+    assert isinstance(bash_entry["hooks"], list)
+    assert len(bash_entry["hooks"]) > 0
+    hook = bash_entry["hooks"][0]
+    assert hook["type"] == "command"
+    assert "command" in hook
+    assert "gitflow-guard.sh" in hook["command"]
 
 
 def test_install_gitflow_hook_merges_existing_settings(tmp_path: Path):
@@ -75,3 +84,34 @@ def test_install_gitflow_hook_merges_existing_settings(tmp_path: Path):
     settings = json.loads((tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8"))
     assert settings["otherSetting"] is True
     assert "hooks" in settings
+
+
+def test_install_gitflow_hook_raises_on_malformed_json(tmp_path: Path):
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "settings.json").write_text("{ invalid json", encoding="utf-8")
+    try:
+        ClaudeCodeAdapter().install_gitflow_hook(tmp_path)
+        assert False, "Expected ValueError to be raised"
+    except ValueError as e:
+        assert "malformed JSON" in str(e)
+        assert "settings.json" in str(e)
+        assert "fix or remove" in str(e)
+
+
+def test_install_gitflow_hook_is_idempotent(tmp_path: Path):
+    adapter = ClaudeCodeAdapter()
+    # First call
+    adapter.install_gitflow_hook(tmp_path)
+    settings1 = json.loads((tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    first_count = len(settings1["hooks"]["PreToolUse"])
+
+    # Second call
+    adapter.install_gitflow_hook(tmp_path)
+    settings2 = json.loads((tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    second_count = len(settings2["hooks"]["PreToolUse"])
+
+    # Should not have added a duplicate
+    assert first_count == second_count == 1
+    # Verify it's still the same entry
+    bash_entries = [e for e in settings2["hooks"]["PreToolUse"] if e["matcher"] == "Bash"]
+    assert len(bash_entries) == 1

@@ -46,14 +46,33 @@ class ClaudeCodeAdapter:
         settings_path = project_root / ".claude" / "settings.json"
         settings = {}
         if settings_path.exists():
-            settings = json.loads(settings_path.read_text(encoding="utf-8"))
+            try:
+                settings = json.loads(settings_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as e:
+                raise ValueError(
+                    f"Failed to parse {settings_path}: malformed JSON. "
+                    f"Please fix or remove the file. Details: {e}"
+                ) from e
+
         settings.setdefault("hooks", {}).setdefault("PreToolUse", [])
-        settings["hooks"]["PreToolUse"].append(
-            {
-                "matcher": "Bash",
-                "hooks": [{"type": "command", "command": str(guard_path)}],
-            }
+
+        # Check for idempotency: only add if not already present
+        guard_command = str(guard_path)
+        existing_entry = next(
+            (entry for entry in settings["hooks"]["PreToolUse"]
+             if entry.get("matcher") == "Bash" and
+             any(h.get("command") == guard_command for h in entry.get("hooks", []))),
+            None
         )
+
+        if not existing_entry:
+            settings["hooks"]["PreToolUse"].append(
+                {
+                    "matcher": "Bash",
+                    "hooks": [{"type": "command", "command": guard_command}],
+                }
+            )
+
         settings_path.write_text(json.dumps(settings, indent=2), encoding="utf-8")
 
         return [guard_path, settings_path]
