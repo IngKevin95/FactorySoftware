@@ -75,6 +75,88 @@ def test_install_all_writes_files_and_manifest(tmp_path: Path):
     assert (tmp_path / "requirements-flujo.md").exists()
 
 
+_FIXTURE_PHASE_2 = """\
+---
+id: architecture
+steps:
+  - id: adrs
+    depende_de: []
+---
+Preámbulo de arquitectura.
+
+## Paso: adrs
+
+Escribí los ADRs.
+"""
+
+
+def _make_two_phase_content_dir(tmp_path: Path) -> Path:
+    content_dir = tmp_path / "content"
+    content_dir.mkdir()
+    (content_dir / "requirements.md").write_text(_FIXTURE_PHASE, encoding="utf-8")
+    (content_dir / "architecture.md").write_text(_FIXTURE_PHASE_2, encoding="utf-8")
+    return content_dir
+
+
+def test_install_all_merges_every_phase_into_one_single_file_target(tmp_path: Path):
+    content_dir = _make_two_phase_content_dir(tmp_path)
+
+    manifest = install_all(tmp_path, content_dir, adapters=[_SingleFileAdapter()])
+
+    combined = (tmp_path / "combined.md").read_text(encoding="utf-8")
+    assert "## requirements-prd" in combined
+    assert "## architecture-adrs" in combined
+    assert "Hacé el PRD." in combined
+    assert "Escribí los ADRs." in combined
+
+    entries = [f for f in manifest.files if f.path == "combined.md"]
+    assert len(entries) == 1
+    assert len(manifest.files) == 1
+    assert entries[0].hash == compute_hash(combined)
+
+
+def test_update_all_after_install_does_not_warn_about_single_file_adapter(tmp_path: Path):
+    content_dir = _make_two_phase_content_dir(tmp_path)
+    install_all(tmp_path, content_dir, adapters=[_SingleFileAdapter()])
+
+    manifest, warnings = update_all(tmp_path, content_dir, adapters=[_SingleFileAdapter()])
+
+    assert warnings == []
+    combined = (tmp_path / "combined.md").read_text(encoding="utf-8")
+    assert "## requirements-prd" in combined
+    assert "## architecture-adrs" in combined
+    assert len(manifest.files) == 1
+
+
+class _SingleFileAdapterB(_SingleFileAdapter):
+    name = "single_b"
+
+
+def test_install_all_dedupes_manifest_entries_sharing_one_path(tmp_path: Path):
+    content_dir = _make_two_phase_content_dir(tmp_path)
+
+    manifest = install_all(
+        tmp_path, content_dir, adapters=[_SingleFileAdapter(), _SingleFileAdapterB()]
+    )
+
+    assert [f.path for f in manifest.files] == ["combined.md"]
+
+
+_MALFORMED_PHASE = "# Un README suelto sin frontmatter.\n"
+
+
+def test_install_all_skips_malformed_content_file_and_keeps_going(tmp_path: Path, capsys):
+    content_dir = _make_two_phase_content_dir(tmp_path)
+    (content_dir / "README.md").write_text(_MALFORMED_PHASE, encoding="utf-8")
+
+    manifest = install_all(tmp_path, content_dir, adapters=[_MultiFileAdapter()])
+
+    assert "README.md" in capsys.readouterr().err
+    assert (tmp_path / "requirements-prd.md").exists()
+    assert (tmp_path / "architecture-adrs.md").exists()
+    assert len(manifest.files) == 4  # prd, requirements-flujo, adrs, architecture-flujo
+
+
 class _UnwritableAdapter:
     name = "unwritable"
     def detect(self, project_root): return True
@@ -174,3 +256,53 @@ def test_uninstall_all_skips_user_edited_files(tmp_path: Path):
 
     assert (tmp_path / "requirements-prd.md").exists()
     assert any("requirements-prd" in w for w in warnings)
+
+
+from factorysoftware.adapters.claude_code import ClaudeCodeAdapter
+
+
+def test_install_all_installs_and_records_gitflow_hook(tmp_path: Path):
+    content_dir = tmp_path / "content"
+    content_dir.mkdir()
+    (content_dir / "requirements.md").write_text(_FIXTURE_PHASE, encoding="utf-8")
+    (tmp_path / ".claude").mkdir()
+
+    manifest = install_all(tmp_path, content_dir, adapters=[ClaudeCodeAdapter()])
+
+    guard = tmp_path / ".claude" / "hooks" / "gitflow-guard.sh"
+    settings = tmp_path / ".claude" / "settings.json"
+    assert guard.exists()
+    assert settings.exists()
+
+    recorded = {f.path for f in manifest.files}
+    assert str(Path(".claude") / "hooks" / "gitflow-guard.sh") in recorded
+    assert str(Path(".claude") / "settings.json") in recorded
+
+
+def test_update_all_keeps_gitflow_hook_tracked(tmp_path: Path):
+    content_dir = tmp_path / "content"
+    content_dir.mkdir()
+    (content_dir / "requirements.md").write_text(_FIXTURE_PHASE, encoding="utf-8")
+    (tmp_path / ".claude").mkdir()
+    install_all(tmp_path, content_dir, adapters=[ClaudeCodeAdapter()])
+
+    manifest, warnings = update_all(tmp_path, content_dir, adapters=[ClaudeCodeAdapter()])
+
+    assert warnings == []
+    assert str(Path(".claude") / "settings.json") in {f.path for f in manifest.files}
+
+
+def test_uninstall_all_preserves_provider_marker_directory(tmp_path: Path):
+    content_dir = tmp_path / "content"
+    content_dir.mkdir()
+    (content_dir / "requirements.md").write_text(_FIXTURE_PHASE, encoding="utf-8")
+    (tmp_path / ".claude").mkdir()
+    install_all(tmp_path, content_dir, adapters=[ClaudeCodeAdapter()])
+
+    warnings = uninstall_all(tmp_path)
+
+    assert warnings == []
+    assert not (tmp_path / ".claude" / "skills" / "requirements-prd").exists()
+    # .claude lo creó el usuario y es lo que hace detectable al proveedor:
+    # uninstall no puede borrarlo aunque quede vacío.
+    assert (tmp_path / ".claude").is_dir()
