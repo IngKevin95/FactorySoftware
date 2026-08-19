@@ -38,6 +38,10 @@ docs/requirements/
     HU-1.2.md
     HU-2.1.md
     ...
+  flujos/
+    FLUJO-1.md
+    FLUJO-2.md
+    ...
   traceability.md
 ```
 
@@ -49,11 +53,38 @@ unidad de negocio.
 
 - `EPIC-N`: secuencial, asignado una vez, nunca reusado.
 - `HU-N.M`: N = número de épica dueña, M = secuencial dentro de esa épica.
-- Si una HU o Épica se retira, su archivo **no se borra ni se reusa el id**:
-  se le cambia el frontmatter `estado: retirada` y se mueve a
-  `stories/retiradas/` o `epics/retiradas/`. Esto preserva la integridad de
-  la trazabilidad histórica (una HU referenciada por un commit o un test
-  viejo sigue siendo encontrable).
+- `FLUJO-N`: secuencial, independiente de la numeración de Épicas/HU (un
+  flujo puede cruzar varias).
+- Si una HU, Épica o Flujo se retira, su archivo **no se borra ni se reusa
+  el id**: se le cambia el frontmatter `estado: retirada` y se mueve a la
+  subcarpeta `retiradas/` correspondiente. Esto preserva la integridad de
+  la trazabilidad histórica (una HU/flujo referenciado por un commit o un
+  test viejo sigue siendo encontrable).
+
+### `flujos/FLUJO-N.md`
+
+Frontmatter: `id`, `estado`, `hu` (lista **ordenada** de ids `HU-x.y` que el
+flujo recorre — puede cruzar varias Épicas). Cuerpo: nombre del flujo (ej.
+"Alta de cuenta y primer login"), descripción paso a paso de qué hace el
+usuario en cada HU de la secuencia, y el **criterio de éxito del flujo
+completo** — distinto de los criterios de aceptación de cada HU aislada,
+porque un flujo puede fallar aunque cada HU individualmente pase sus propios
+tests (ej. el dato que HU-1.3 guarda no es el que HU-2.1 espera leer más
+adelante en el mismo flujo).
+
+A esta altura del pipeline todavía no existe Arquitectura (que es donde se
+define la navegación técnica real entre pantallas) — los flujos acá son de
+**negocio**, no de navegación de UI: se derivan de las relaciones
+`depende_de` entre HU y de la narrativa de las Épicas (qué secuencia de
+acciones tiene sentido para lograr un objetivo del PRD), no de una
+navegación pantalla-a-pantalla que todavía no existe. La relación es al
+revés de lo que podría parecer intuitivo: Arquitectura, cuando defina la
+navegación real en `SCREEN-N.md`, tiene que **honrar estos flujos** ya
+declarados, no al revés — por eso `flujos` es un paso de Requerimientos y no
+algo que se infiere después. No todo par de HU relacionadas forma un flujo
+relevante; el criterio es que represente un camino real que un usuario
+recorrería para lograr un objetivo de negocio (alta de cuenta, compra,
+publicación de contenido, etc.).
 
 ## Pipeline de ejecución (usa el mecanismo transversal del núcleo)
 
@@ -105,8 +136,18 @@ para no solaparse en alcance, por eso corre como paso único (no fan-out).
   # agrega: una fila por cada HU generada en el paso anterior (necesita
   # ver el resultado completo de todas las instancias de fan-out)
 
+- id: flujos
+  depende_de: [hu_por_epica]
+  fan_out: null
+  paralelizable: false
+  # independiente de traceability (ambos dependen solo de hu_por_epica,
+  # corren en paralelo entre sí) — una sola pasada que ve TODAS las HU de
+  # todas las épicas juntas para encontrar secuencias de negocio coherentes
+  # que las crucen; no tiene sentido como fan-out porque encontrar un
+  # flujo requiere ver el conjunto completo, no una épica aislada
+
 - id: audit_loop
-  depende_de: [traceability]
+  depende_de: [traceability, flujos]
   fan_out: null
   paralelizable: false
   # loop auditor-constructor del núcleo, hasta 3 iteraciones, después gate
@@ -188,27 +229,33 @@ Verificaciones estructurales (mecánicas, no requieren juicio):
    Asesor tiene que haber revisado y sugerido capacidades transversales
    típicas, aunque el usuario las haya rechazado todas; lo que no puede
    faltar es que la revisión haya ocurrido.
+7. Todo id en `hu` de un `FLUJO-N.md` existe como archivo real de HU (o
+   `retirada`, nunca inexistente).
 
 Verificaciones de juicio (requieren lectura semántica del agente auditor):
 
-7. Cada Épica tiene una meta de negocio trazable a un objetivo explícito del
+8. Cada Épica tiene una meta de negocio trazable a un objetivo explícito del
    PRD (sin épicas "flotantes" fuera del alcance declarado).
-8. No hay contradicciones entre criterios de aceptación de HU distintas
+9. No hay contradicciones entre criterios de aceptación de HU distintas
    dentro de la misma épica (ej. dos reglas de negocio incompatibles sobre
    el mismo campo/entidad).
-9. El alcance declarado en el PRD no tiene huecos evidentes respecto a las
+10. El alcance declarado en el PRD no tiene huecos evidentes respecto a las
    épicas creadas (cobertura), ni las épicas se salen del alcance declarado
    (scope creep).
+11. Todo objetivo de negocio del PRD que implica un camino de varios pasos
+   (no una acción aislada) tiene al menos un `FLUJO-N` que lo cubre de
+   principio a fin — un flujo de negocio importante sin documentar es
+   hallazgo bloqueante, no un detalle a agregar después.
 
-Las verificaciones 1–6 se ejecutan como chequeo determinístico (ver abajo);
-las 7–9 (renumeradas: antes 6–8) quedan a cargo del paso de auditoría
-semántica (agente separado o autocrítica, según lo defina el núcleo).
+Las verificaciones 1–7 se ejecutan como chequeo determinístico (ver abajo);
+las 8–11 quedan a cargo del paso de auditoría semántica (agente separado o
+autocrítica, según lo defina el núcleo).
 
 ## Extensión del CLI del núcleo
 
 Se agrega un subcomando `factory validate requirements` (extiende el CLI
 definido en el spec del núcleo) que corre las verificaciones estructurales
-1–6 de forma determinística sobre `docs/requirements/` y `.factory/log.jsonl`
+1–7 de forma determinística sobre `docs/requirements/` y `.factory/log.jsonl`
 (para la verificación 6) y devuelve una lista de problemas encontrados
 (vacía si todo bien). La skill instruye al agente a correr este comando
 como primer paso de cada iteración del loop de auditoría, antes de la
@@ -231,10 +278,11 @@ verifique referencias cruzadas a mano.
 pytest, cero IO externo, fixtures de árbol de documentos en `tmp_path`:
 
 - `test_validate_requirements.py`: casos positivos (set completo y
-  coherente) y cada caso negativo de la checklist estructural 1–6 por
+  coherente) y cada caso negativo de la checklist estructural 1–7 por
   separado (HU huérfana, dependencia inexistente, referencia circular, fila
   de trazabilidad faltante/huérfana, HU sin criterios de aceptación, cierre
-  de `epics` sin evento `advisor_note` de sugerencia transversal).
+  de `epics` sin evento `advisor_note` de sugerencia transversal, `FLUJO-N`
+  con id de HU inexistente).
 
 ## Preguntas abiertas para specs futuros
 
