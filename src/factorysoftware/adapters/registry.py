@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from factorysoftware.adapters.antigravity import AntigravityAdapter
 from factorysoftware.adapters.base import ProviderAdapter
 from factorysoftware.adapters.claude_code import ClaudeCodeAdapter
 from factorysoftware.adapters.codex import CodexAdapter
@@ -10,7 +11,7 @@ from factorysoftware.adapters.copilot import CopilotAdapter
 from factorysoftware.adapters.opencode import OpenCodeAdapter
 
 ALL_ADAPTERS: list[ProviderAdapter] = [
-    ClaudeCodeAdapter(), CopilotAdapter(), CodexAdapter(), OpenCodeAdapter(),
+    ClaudeCodeAdapter(), AntigravityAdapter(), CopilotAdapter(), CodexAdapter(), OpenCodeAdapter(),
 ]
 
 

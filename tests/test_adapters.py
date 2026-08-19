@@ -225,3 +225,95 @@ def test_opencode_target_paths_same_as_codex(tmp_path: Path):
 
 def test_opencode_detect_false_without_marker(tmp_path: Path):
     assert OpenCodeAdapter().detect(tmp_path) is False
+
+
+from factorysoftware.adapters.antigravity import AntigravityAdapter
+
+
+def test_antigravity_detect_true_with_dot_agents(tmp_path: Path):
+    (tmp_path / ".agents").mkdir()
+    assert AntigravityAdapter().detect(tmp_path) is True
+
+
+def test_antigravity_detect_false_when_absent(tmp_path: Path):
+    assert AntigravityAdapter().detect(tmp_path) is False
+
+
+def test_antigravity_target_paths_mirrors_claude_code_layout(tmp_path: Path):
+    paths = AntigravityAdapter().target_paths(tmp_path, ["requirements-prd"])
+    assert paths["requirements-prd"] == tmp_path / ".agents" / "skills" / "requirements-prd" / "SKILL.md"
+
+
+def test_antigravity_render_adds_frontmatter():
+    rendered = AntigravityAdapter().render("requirements-prd", "Hacé el PRD.")
+    assert "name: requirements-prd" in rendered
+    assert "Hacé el PRD." in rendered
+
+
+def test_antigravity_install_gitflow_hook_writes_hooks_json(tmp_path: Path):
+    written = AntigravityAdapter().install_gitflow_hook(tmp_path)
+    hooks_path = tmp_path / ".agents" / "hooks.json"
+    assert hooks_path in written
+    assert hooks_path.exists()
+
+
+def test_antigravity_install_gitflow_hook_writes_guard_script(tmp_path: Path):
+    written = AntigravityAdapter().install_gitflow_hook(tmp_path)
+    guard = tmp_path / ".agents" / "gitflow-guard.sh"
+    assert guard in written
+    assert guard.exists()
+    assert "git commit" in guard.read_text(encoding="utf-8")
+    assert "main" in guard.read_text(encoding="utf-8")
+
+
+def test_antigravity_install_gitflow_hook_registers_pretooluse_run_command(tmp_path: Path):
+    # Schema verified against official docs (antigravity.google/docs/hooks):
+    # {"<hook-name>": {"PreToolUse": [{"matcher": "run_command", "hooks": [{"type": "command", "command": ...}]}]}}
+    AntigravityAdapter().install_gitflow_hook(tmp_path)
+    hooks_path = tmp_path / ".agents" / "hooks.json"
+    hooks_config = json.loads(hooks_path.read_text(encoding="utf-8"))
+    pretooluse = hooks_config["gitflow-guard"]["PreToolUse"]
+    assert any(entry["matcher"] == "run_command" for entry in pretooluse)
+    entry = next(e for e in pretooluse if e["matcher"] == "run_command")
+    assert isinstance(entry["hooks"], list)
+    assert len(entry["hooks"]) > 0
+    hook = entry["hooks"][0]
+    assert hook["type"] == "command"
+    assert "gitflow-guard.sh" in hook["command"]
+
+
+def test_antigravity_install_gitflow_hook_merges_existing_hooks_json(tmp_path: Path):
+    (tmp_path / ".agents").mkdir()
+    (tmp_path / ".agents" / "hooks.json").write_text(
+        json.dumps({"other-hook": {"PostToolUse": []}}), encoding="utf-8"
+    )
+    AntigravityAdapter().install_gitflow_hook(tmp_path)
+    hooks_config = json.loads((tmp_path / ".agents" / "hooks.json").read_text(encoding="utf-8"))
+    assert "other-hook" in hooks_config
+    assert "gitflow-guard" in hooks_config
+
+
+def test_antigravity_install_gitflow_hook_raises_on_malformed_json(tmp_path: Path):
+    (tmp_path / ".agents").mkdir()
+    (tmp_path / ".agents" / "hooks.json").write_text("{ invalid json", encoding="utf-8")
+    try:
+        AntigravityAdapter().install_gitflow_hook(tmp_path)
+        assert False, "Expected ValueError to be raised"
+    except ValueError as e:
+        assert "malformed JSON" in str(e)
+        assert "hooks.json" in str(e)
+        assert "fix or remove" in str(e)
+
+
+def test_antigravity_install_gitflow_hook_is_idempotent(tmp_path: Path):
+    adapter = AntigravityAdapter()
+    adapter.install_gitflow_hook(tmp_path)
+    hooks_path = tmp_path / ".agents" / "hooks.json"
+    first = json.loads(hooks_path.read_text(encoding="utf-8"))
+    first_count = len(first["gitflow-guard"]["PreToolUse"])
+
+    adapter.install_gitflow_hook(tmp_path)
+    second = json.loads(hooks_path.read_text(encoding="utf-8"))
+    second_count = len(second["gitflow-guard"]["PreToolUse"])
+
+    assert first_count == second_count == 1
