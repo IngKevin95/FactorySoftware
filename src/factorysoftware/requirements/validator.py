@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from pathlib import Path
 
 import yaml
@@ -51,12 +52,17 @@ def _read_text_safely(f: Path, project_root: Path, errors: list[str]) -> str | N
         return None
 
 
+_GIVEN_RE = re.compile(r"\bGiven\b")
+_WHEN_RE = re.compile(r"\bWhen\b")
+_THEN_RE = re.compile(r"\bThen\b")
+
+
 def _has_gwt(body: str) -> bool:
     """Return True if body contains at least one Given...When...Then block."""
     return (
-        bool(re.search(r"\bGiven\b", body))
-        and bool(re.search(r"\bWhen\b", body))
-        and bool(re.search(r"\bThen\b", body))
+        bool(_GIVEN_RE.search(body))
+        and bool(_WHEN_RE.search(body))
+        and bool(_THEN_RE.search(body))
     )
 
 
@@ -236,7 +242,6 @@ def validate_requirements(project_root: Path, log_path: Path) -> list[str]:
     trace_set = set(trace_hu_ids)
 
     # Check for duplicate rows
-    from collections import Counter
     hu_counts = Counter(trace_hu_ids)
     for hu_id, count in hu_counts.items():
         if count > 1:
