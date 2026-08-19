@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from factorysoftware.installer import write_skills
@@ -290,6 +291,74 @@ def test_update_all_keeps_gitflow_hook_tracked(tmp_path: Path):
 
     assert warnings == []
     assert str(Path(".claude") / "settings.json") in {f.path for f in manifest.files}
+
+
+def _install_with_claude_code(tmp_path: Path) -> None:
+    content_dir = tmp_path / "content"
+    content_dir.mkdir()
+    (content_dir / "requirements.md").write_text(_FIXTURE_PHASE, encoding="utf-8")
+    (tmp_path / ".claude").mkdir()
+    install_all(tmp_path, content_dir, adapters=[ClaudeCodeAdapter()])
+
+
+def test_uninstall_all_keeps_user_settings_that_predate_the_install(tmp_path: Path):
+    settings = tmp_path / ".claude" / "settings.json"
+    settings.parent.mkdir()
+    settings.write_text(json.dumps({"userSetting": True}), encoding="utf-8")
+
+    content_dir = tmp_path / "content"
+    content_dir.mkdir()
+    (content_dir / "requirements.md").write_text(_FIXTURE_PHASE, encoding="utf-8")
+    install_all(tmp_path, content_dir, adapters=[ClaudeCodeAdapter()])
+    assert "hooks" in json.loads(settings.read_text(encoding="utf-8"))
+
+    warnings = uninstall_all(tmp_path)
+
+    assert warnings == []
+    assert settings.exists()
+    remaining = json.loads(settings.read_text(encoding="utf-8"))
+    assert remaining == {"userSetting": True}
+
+
+def test_uninstall_all_removes_settings_file_when_only_the_hook_was_in_it(tmp_path: Path):
+    _install_with_claude_code(tmp_path)
+
+    warnings = uninstall_all(tmp_path)
+
+    assert warnings == []
+    assert not (tmp_path / ".claude" / "settings.json").exists()
+
+
+def test_uninstall_all_removes_gitflow_guard_script(tmp_path: Path):
+    _install_with_claude_code(tmp_path)
+    guard = tmp_path / ".claude" / "hooks" / "gitflow-guard.sh"
+    assert guard.exists()
+
+    warnings = uninstall_all(tmp_path)
+
+    assert warnings == []
+    assert not guard.exists()
+    assert not guard.parent.exists()
+
+
+def test_update_all_warns_instead_of_crashing_on_malformed_settings(tmp_path: Path, capsys):
+    content_dir = tmp_path / "content"
+    content_dir.mkdir()
+    (content_dir / "requirements.md").write_text(_FIXTURE_PHASE, encoding="utf-8")
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "settings.json").write_text("{ invalid json", encoding="utf-8")
+
+    install_all(tmp_path, content_dir, adapters=[ClaudeCodeAdapter()])
+    assert "malformed JSON" in capsys.readouterr().err
+
+    manifest, warnings = update_all(tmp_path, content_dir, adapters=[ClaudeCodeAdapter()])
+
+    err = capsys.readouterr().err
+    assert "claude_code" in err
+    assert "malformed JSON" in err
+    assert manifest.providers == ["claude_code"]
+    # el archivo roto del usuario queda como estaba, no lo pisa nadie
+    assert (tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8") == "{ invalid json"
 
 
 def test_uninstall_all_preserves_provider_marker_directory(tmp_path: Path):

@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from factorysoftware.adapters.base import ProviderAdapter
+from factorysoftware.adapters.registry import ALL_ADAPTERS
 from factorysoftware.content import parse_content
 from factorysoftware.render import build_skill_map
 from factorysoftware.state import Manifest, ManifestFile, compute_hash, read_manifest, write_manifest
@@ -12,9 +13,24 @@ from factorysoftware.state import Manifest, ManifestFile, compute_hash, read_man
 _VERSION = "0.1.0"
 
 # skill_id sintético con el que se registran en el manifest los archivos del
-# hook de Git Flow, para que update/uninstall los gestionen como cualquier otro
-# archivo instalado por la fábrica.
+# hook de Git Flow. Lleva pegado el nombre del adapter que lo instaló
+# (``_gitflow_hook:claude_code``) porque uninstall necesita saber a quién
+# pedirle que lo desinstale: esos archivos no se pueden borrar a ciegas, el
+# config JSON está fusionado con configuración del usuario.
 _GITFLOW_SKILL_ID = "_gitflow_hook"
+
+
+def _gitflow_skill_id(adapter: ProviderAdapter) -> str:
+    return f"{_GITFLOW_SKILL_ID}:{adapter.name}"
+
+
+def _gitflow_owner(skill_id: str) -> ProviderAdapter | None:
+    """Adapter dueño de una entrada de hook del manifest, si la entrada lo es."""
+    prefix = f"{_GITFLOW_SKILL_ID}:"
+    if not skill_id.startswith(prefix):
+        return None
+    name = skill_id[len(prefix):]
+    return next((a for a in ALL_ADAPTERS if a.name == name), None)
 
 
 def _load_skill_map(content_dir: Path) -> dict[str, str]:
@@ -70,7 +86,7 @@ def _install_gitflow_hook(project_root: Path, adapter: ProviderAdapter) -> list[
         ManifestFile(
             path=str(p.relative_to(project_root)),
             hash=compute_hash(p.read_text(encoding="utf-8")),
-            skill_id=_GITFLOW_SKILL_ID,
+            skill_id=_gitflow_skill_id(adapter),
         )
         for p in install(project_root)
     ]
@@ -119,7 +135,9 @@ def install_all(
         try:
             all_files.extend(write_skills(project_root, adapter, skill_map))
             all_files.extend(_install_gitflow_hook(project_root, adapter))
-        except OSError as e:
+        except (OSError, ValueError) as e:
+            # ValueError: read_json_config avisa así de un config JSON malformado
+            # preexistente (por ejemplo un .claude/settings.json roto a mano).
             print(f"Advertencia: el adapter '{adapter.name}' falló al escribir ({e}), se salta", file=sys.stderr)
 
     manifest = Manifest(
@@ -168,7 +186,9 @@ def update_all(
                 )
 
             all_files.extend(_install_gitflow_hook(project_root, adapter))
-        except OSError as e:
+        except (OSError, ValueError) as e:
+            # ValueError: read_json_config avisa así de un config JSON malformado
+            # preexistente (por ejemplo un .claude/settings.json roto a mano).
             print(f"Advertencia: el adapter '{adapter.name}' falló al escribir ({e}), se salta", file=sys.stderr)
 
     # Gap conocido (pendiente para una tarea futura): las entradas del manifest
@@ -216,7 +236,15 @@ def uninstall_all(project_root: Path) -> list[str]:
         return []
 
     warnings: list[str] = []
+    gitflow: dict[str, list[ManifestFile]] = {}
     for f in manifest.files:
+        # Los archivos del hook de Git Flow no se borran a ciegas: el config
+        # JSON está fusionado con configuración del usuario (que puede ser
+        # anterior a la fábrica) y borrarlo entero se la lleva puesta. Los
+        # desinstala el adapter que los instaló, sacando sólo su propia entrada.
+        if f.skill_id.startswith(_GITFLOW_SKILL_ID):
+            gitflow.setdefault(f.skill_id, []).append(f)
+            continue
         path = project_root / f.path
         if not path.exists():
             continue
@@ -226,6 +254,15 @@ def uninstall_all(project_root: Path) -> list[str]:
             continue
         path.unlink()
         _prune_empty_parents(project_root, Path(f.path))
+
+    for skill_id, files in gitflow.items():
+        adapter = _gitflow_owner(skill_id)
+        if adapter is None:
+            warnings.append(f"{skill_id}: no se encontró el adapter que lo instaló, no se borra")
+            continue
+        adapter.uninstall_gitflow_hook(project_root)
+        for f in files:
+            _prune_empty_parents(project_root, Path(f.path))
 
     if not warnings:
         (project_root / ".factory" / "manifest.json").unlink(missing_ok=True)

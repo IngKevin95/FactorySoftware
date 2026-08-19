@@ -5,8 +5,10 @@ from pathlib import Path
 from factorysoftware.adapters.base import (
     GUARD_SCRIPT,
     read_json_config,
+    remove_hook_entry,
     write_guard_script,
     write_json_config,
+    write_or_remove_json_config,
 )
 
 # confidence: verified 2026-08-19 via web search against official Antigravity
@@ -41,12 +43,17 @@ class AntigravityAdapter:
         description = f"Factory skill: {skill_id}"
         return f"---\nname: {skill_id}\ndescription: {description}\n---\n\n{content_md}"
 
+    def _guard_path(self, project_root: Path) -> Path:
+        return project_root / ".agents" / "gitflow-guard.sh"
+
+    def _hooks_json_path(self, project_root: Path) -> Path:
+        return project_root / ".agents" / "hooks.json"
+
     def install_gitflow_hook(self, project_root: Path) -> list[Path]:
-        agents_dir = project_root / ".agents"
-        guard_path = agents_dir / "gitflow-guard.sh"
+        guard_path = self._guard_path(project_root)
         write_guard_script(guard_path, GUARD_SCRIPT)
 
-        hooks_json_path = agents_dir / "hooks.json"
+        hooks_json_path = self._hooks_json_path(project_root)
         hooks_config = read_json_config(hooks_json_path)
 
         pretooluse = hooks_config.setdefault("gitflow-guard", {}).setdefault("PreToolUse", [])
@@ -70,3 +77,22 @@ class AntigravityAdapter:
         write_json_config(hooks_json_path, hooks_config)
 
         return [guard_path, hooks_json_path]
+
+    def uninstall_gitflow_hook(self, project_root: Path) -> None:
+        """Deshacer install_gitflow_hook sin pisar configuración ajena.
+
+        Mismo criterio que en Claude Code: el script de guardia es 100% de la
+        fábrica y se borra entero; ``hooks.json`` puede tener hooks del usuario
+        y se le saca sólo la entrada propia.
+        """
+        guard_path = self._guard_path(project_root)
+        guard_path.unlink(missing_ok=True)
+
+        hooks_json_path = self._hooks_json_path(project_root)
+        if not hooks_json_path.exists():
+            return
+        hooks_config = read_json_config(hooks_json_path)
+        remove_hook_entry(
+            hooks_config, "gitflow-guard", "PreToolUse", "run_command", str(guard_path)
+        )
+        write_or_remove_json_config(hooks_json_path, hooks_config)

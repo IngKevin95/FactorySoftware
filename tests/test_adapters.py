@@ -117,6 +117,51 @@ def test_install_gitflow_hook_is_idempotent(tmp_path: Path):
     assert len(bash_entries) == 1
 
 
+def test_uninstall_gitflow_hook_keeps_the_rest_of_settings(tmp_path: Path):
+    (tmp_path / ".claude").mkdir()
+    settings_path = tmp_path / ".claude" / "settings.json"
+    settings_path.write_text(json.dumps({"userSetting": True}), encoding="utf-8")
+    adapter = ClaudeCodeAdapter()
+    adapter.install_gitflow_hook(tmp_path)
+
+    adapter.uninstall_gitflow_hook(tmp_path)
+
+    assert json.loads(settings_path.read_text(encoding="utf-8")) == {"userSetting": True}
+    assert not (tmp_path / ".claude" / "hooks" / "gitflow-guard.sh").exists()
+
+
+def test_uninstall_gitflow_hook_keeps_foreign_pretooluse_entries(tmp_path: Path):
+    adapter = ClaudeCodeAdapter()
+    adapter.install_gitflow_hook(tmp_path)
+    settings_path = tmp_path / ".claude" / "settings.json"
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    settings["hooks"]["PreToolUse"].append(
+        {"matcher": "Bash", "hooks": [{"type": "command", "command": "mi-propio-hook.sh"}]}
+    )
+    settings_path.write_text(json.dumps(settings), encoding="utf-8")
+
+    adapter.uninstall_gitflow_hook(tmp_path)
+
+    remaining = json.loads(settings_path.read_text(encoding="utf-8"))["hooks"]["PreToolUse"]
+    assert len(remaining) == 1
+    assert remaining[0]["hooks"][0]["command"] == "mi-propio-hook.sh"
+
+
+def test_uninstall_gitflow_hook_removes_settings_file_when_it_becomes_empty(tmp_path: Path):
+    adapter = ClaudeCodeAdapter()
+    adapter.install_gitflow_hook(tmp_path)
+
+    adapter.uninstall_gitflow_hook(tmp_path)
+
+    assert not (tmp_path / ".claude" / "settings.json").exists()
+
+
+def test_uninstall_gitflow_hook_is_a_noop_without_config_file(tmp_path: Path):
+    (tmp_path / ".claude").mkdir()
+    ClaudeCodeAdapter().uninstall_gitflow_hook(tmp_path)
+    assert not (tmp_path / ".claude" / "settings.json").exists()
+
+
 from factorysoftware.adapters import registry
 
 
@@ -311,6 +356,28 @@ def test_antigravity_install_gitflow_hook_raises_on_malformed_json(tmp_path: Pat
         assert "malformed JSON" in str(e)
         assert "hooks.json" in str(e)
         assert "fix or remove" in str(e)
+
+
+def test_antigravity_uninstall_gitflow_hook_keeps_foreign_hooks(tmp_path: Path):
+    (tmp_path / ".agents").mkdir()
+    hooks_path = tmp_path / ".agents" / "hooks.json"
+    hooks_path.write_text(json.dumps({"other-hook": {"PostToolUse": []}}), encoding="utf-8")
+    adapter = AntigravityAdapter()
+    adapter.install_gitflow_hook(tmp_path)
+
+    adapter.uninstall_gitflow_hook(tmp_path)
+
+    assert json.loads(hooks_path.read_text(encoding="utf-8")) == {"other-hook": {"PostToolUse": []}}
+    assert not (tmp_path / ".agents" / "gitflow-guard.sh").exists()
+
+
+def test_antigravity_uninstall_gitflow_hook_removes_hooks_json_when_empty(tmp_path: Path):
+    adapter = AntigravityAdapter()
+    adapter.install_gitflow_hook(tmp_path)
+
+    adapter.uninstall_gitflow_hook(tmp_path)
+
+    assert not (tmp_path / ".agents" / "hooks.json").exists()
 
 
 def test_antigravity_install_gitflow_hook_is_idempotent(tmp_path: Path):

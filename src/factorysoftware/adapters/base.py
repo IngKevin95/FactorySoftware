@@ -71,3 +71,51 @@ def write_json_config(config_path: Path, config: dict[str, Any]) -> None:
     """Write a JSON config file, pretty-printed, creating parent directories as needed."""
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
+
+
+def remove_hook_entry(
+    config: dict[str, Any], outer: str, inner: str, matcher: str, command: str
+) -> None:
+    """Quitar in-place la entrada de hook que instaló la fábrica.
+
+    ``outer``/``inner`` son las dos claves que anidan la lista de entradas
+    (``hooks``/``PreToolUse`` en Claude Code, ``gitflow-guard``/``PreToolUse``
+    en Antigravity). Se borra sólo la entrada cuyo matcher y comando coinciden
+    exactamente con lo que escribió ``install_gitflow_hook``: todo lo demás del
+    archivo queda intacto. Los dos contenedores se podan si quedan vacíos, así
+    un archivo que sólo tenía el hook de la fábrica termina como ``{}`` y el
+    llamador puede borrarlo entero.
+    """
+    container = config.get(outer)
+    if not isinstance(container, dict):
+        return
+    entries = container.get(inner)
+    if not isinstance(entries, list):
+        return
+
+    remaining = [e for e in entries if not _is_factory_entry(e, matcher, command)]
+    if remaining:
+        container[inner] = remaining
+        return
+    del container[inner]
+    if not container:
+        del config[outer]
+
+
+def _is_factory_entry(entry: Any, matcher: str, command: str) -> bool:
+    return (
+        isinstance(entry, dict)
+        and entry.get("matcher") == matcher
+        and any(
+            isinstance(h, dict) and h.get("command") == command
+            for h in entry.get("hooks", [])
+        )
+    )
+
+
+def write_or_remove_json_config(config_path: Path, config: dict[str, Any]) -> None:
+    """Escribir el config, o borrar el archivo si no quedó nada adentro."""
+    if config:
+        write_json_config(config_path, config)
+    else:
+        config_path.unlink(missing_ok=True)
