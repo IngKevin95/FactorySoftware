@@ -330,6 +330,71 @@ ejecuta en serie, una instancia a la vez).
    realmente en cada corrida, útil para comparar eficiencia entre
    proveedores.
 
+## Modos de invocación: manual y automático (transversal, obligatorio en
+toda fase)
+
+Todo paso declarado debe poder invocarse de dos formas — nunca solo una:
+
+1. **Manual (paso suelto)**: el usuario le pide al agente ejecutar un paso
+   puntual (ej. "generá el PRD", "armá las HU de la épica 2"). El agente
+   ejecuta *solo* ese paso.
+2. **Automático (flujo completo)**: el usuario le pide correr la fase
+   entera. El agente encadena todos los pasos declarados en orden de
+   `depende_de` (respetando fan-out y la regla de despacho de arriba) y
+   termina con el Auditor de fase + el Auditor Integral + el gate — sin
+   pararse a esperar confirmación entre pasos intermedios.
+
+### Contrato de invocación manual: no se salta prerequisitos en silencio
+
+Antes de ejecutar un paso puntual, el agente **debe** verificar que todos
+sus `depende_de` estén completos:
+
+1. Consulta `.factory/log.jsonl` (vía `factory status --step <phase>.<step_id>`,
+   ver extensión del CLI abajo) buscando el último evento `pipeline_step`
+   de cada dependencia con `estado: completado` (y, si la dependencia tiene
+   fan-out, que **todas** sus instancias estén completas).
+2. Si falta alguna dependencia, el agente **no ejecuta el paso pedido**.
+   En su lugar, le informa al usuario cuál(es) paso(s) previo(s) falta(n) y
+   **sugiere explícitamente ejecutarlo(s) primero** (vía `AskUserQuestion` o
+   el equivalente del proveedor) — nunca lo ejecuta de forma automática sin
+   preguntar, y nunca lo ignora silenciosamente y sigue con el paso pedido
+   sobre datos incompletos.
+3. Si el usuario confirma, el agente corre la(s) dependencia(s) faltante(s)
+   primero y encadena hacia el paso originalmente pedido. Si el usuario
+   dice que no, el agente se detiene y no ejecuta nada.
+
+Este chequeo aplica también dentro del modo automático de forma implícita
+(el orden de `depende_de` ya lo garantiza), pero el contrato explícito de
+arriba es solo necesario para el modo manual, donde el usuario puede pedir
+cualquier paso en cualquier orden.
+
+### Exposición por proveedor
+
+- **Proveedores multi-archivo (Claude Code)**: cada fase se renderiza como
+  un skill orquestador (`<phase>/SKILL.md`, modo automático) más un skill
+  por paso declarado (`<phase>-<step_id>/SKILL.md`, modo manual, con el
+  contrato de verificación de prerequisitos incluido en sus instrucciones).
+  `render.py` deriva ambos a partir del mismo contenido fuente: el `.md` de
+  cada fase se estructura con un heading `## Paso: <step_id>` por paso
+  declarado — el skill manual de un paso es el preámbulo de la fase + esa
+  sección; el skill automático es el preámbulo + todas las secciones
+  concatenadas en orden + la instrucción de encadenarlas.
+- **Proveedores de archivo único (Copilot, Codex, OpenCode, Antigravity)**:
+  no hay separación física de archivos — el único archivo de instrucciones
+  incluye ambos modos como contenido: instrucciones de cómo ejecutar la
+  fase completa, y por separado, para cada paso, sus instrucciones más el
+  contrato de verificación de prerequisitos. El agente decide qué parte
+  aplicar según lo que el usuario pidió.
+
+### Extensión del CLI del núcleo
+
+`factory status --step <phase>.<step_id> [--fan-out-index N]` — devuelve
+`completado` o `pendiente` consultando el último evento `pipeline_step`
+correspondiente en `.factory/log.jsonl` (agregando sobre todas las
+instancias de fan-out si no se especifica índice). Es el mecanismo que
+respalda el contrato de invocación manual de arriba — determinístico, no
+depende del juicio del agente para saber si algo ya se corrió.
+
 ## Manejo de errores
 
 - `update`/`uninstall` nunca borran ni sobreescriben un archivo cuyo hash no
