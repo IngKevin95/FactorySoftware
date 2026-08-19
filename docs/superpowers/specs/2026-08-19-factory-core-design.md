@@ -1,64 +1,69 @@
-# Factory Core + Provider Agnosticism Layer — Design
+# Núcleo de la Fábrica + Capa de Agnosticismo de Proveedor — Diseño
 
-Status: approved
-Subsystem: 1 of N (core) — see `docs/superpowers/specs/README.md` for full decomposition index once created.
+Estado: aprobado
+Subsistema: 1 de N (núcleo) — ver `docs/superpowers/specs/README.md` para el índice completo de la descomposición una vez creado.
 
-## Purpose
+## Propósito
 
-Provide a vendor-agnostic installable package that scaffolds a multi-phase SDLC
-skill system (requirements -> architecture/design -> construction -> QA) into
-any software project, adapted to whichever AI coding assistant(s) are present
-in that project (Claude Code, GitHub Copilot, OpenAI Codex CLI, OpenCode,
-Antigravity), with full lifecycle management (install/update/uninstall) and
-local traceability/metrics.
+Proveer un paquete instalable y agnóstico de proveedor que scaffoldea un
+sistema de skills multi-fase de SDLC (requerimientos -> arquitectura/diseño
+-> construcción -> QA) dentro de cualquier proyecto de software, adaptado
+automáticamente al/los asistente(s) de IA presentes en ese proyecto (Claude
+Code, GitHub Copilot, OpenAI Codex CLI, OpenCode, Antigravity), con gestión
+completa de ciclo de vida (instalar/actualizar/desinstalar) y trazabilidad y
+métricas locales.
 
-This spec covers only the **core**: the installer, provider adapters, and
-state/traceability mechanism. The actual phase content (requirements skill,
-architecture skill, etc.) and project-type packs (backend/mobile/security/...)
-are separate subsystems with their own specs, built on top of this core.
+Este spec cubre solo el **núcleo**: el instalador, los adaptadores de
+proveedor y el mecanismo de estado/trazabilidad. El contenido real de cada
+fase (skill de requerimientos, skill de arquitectura, etc.) y los packs por
+tipo de proyecto (backend/mobile/seguridad/...) son subsistemas separados con
+sus propios specs, construidos sobre este núcleo.
 
-## Non-goals (v1)
+## No-objetivos (v1)
 
-- Calling any LLM API directly. The package never talks to a model; it only
-  writes instruction files that an already-running AI assistant reads.
-- Remote/cloud telemetry. All logs and metrics stay local to the project
-  (`.factory/`), nothing is transmitted anywhere.
-- Full phase content (requirements/architecture/construction/QA skills) —
-  those are separate specs. This core only defines *how* such content gets
-  rendered and installed per provider.
-- Project-type-specific packs (backend, mobile, security, automations,
-  agents, ...) — deferred, core only defines the extension point.
+- Llamar directamente a ninguna API de LLM. El paquete nunca habla con un
+  modelo; solo escribe archivos de instrucciones que un asistente de IA ya en
+  ejecución lee.
+- Telemetría remota/en la nube. Todos los logs y métricas quedan locales al
+  proyecto (`.factory/`), nada se transmite a ningún lado.
+- Contenido completo de fases (skills de requerimientos/arquitectura/
+  construcción/QA) — esos son specs separados. Este núcleo solo define
+  *cómo* ese contenido se renderiza e instala por proveedor.
+- Packs específicos por tipo de proyecto (backend, mobile, seguridad,
+  automatizaciones, agentes, ...) — diferidos, el núcleo solo define el punto
+  de extensión.
 
-## Architecture
+## Arquitectura
 
-Python package `factorysoftware`, distributed via pip/uv. Three layers:
+Paquete Python `factorysoftware`, distribuido vía pip/uv. Tres capas:
 
-1. **Content** — provider-agnostic markdown source files (one file per skill,
-   YAML frontmatter for name/description + body). Single source of truth.
-2. **Adapters** — one Python module per provider. Each adapter knows how to
-   detect the provider in a project and how to render/place content in that
-   provider's expected format and location.
-3. **CLI + state** — lifecycle commands and a local append-only log/manifest
-   used for traceability and metrics.
+1. **Content** — archivos markdown fuente agnósticos de proveedor (un
+   archivo por skill, frontmatter YAML para nombre/descripción + cuerpo).
+   Única fuente de verdad.
+2. **Adapters** — un módulo Python por proveedor. Cada uno sabe detectar el
+   proveedor en un proyecto y renderizar/colocar el contenido en el formato y
+   ubicación que ese proveedor espera.
+3. **CLI + estado** — comandos de ciclo de vida y un log local append-only
+   usado para trazabilidad y métricas.
 
 ```
 src/factorysoftware/
   cli.py                  # init, update, uninstall, status, log
   adapters/
-    base.py                # ProviderAdapter protocol
+    base.py                # Protocolo ProviderAdapter
     claude_code.py
     copilot.py
     codex.py
     opencode.py
     antigravity.py
-    registry.py             # detect() -> list[ProviderAdapter] present in project
-  content/                 # *.md source, single source of truth
+    registry.py             # detect() -> list[ProviderAdapter] presentes en el proyecto
+  content/                 # *.md fuente, única fuente de verdad
     advisor.md
     requirements.md
     architecture.md
     construction.md
     qa.md
-  render.py                 # (content, adapter) -> rendered file(s)
+  render.py                 # (content, adapter) -> archivo(s) renderizado(s)
   state.py                  # manifest.json, log.jsonl, metrics.json
 tests/
   test_adapters.py
@@ -67,7 +72,7 @@ tests/
   test_cli.py
 ```
 
-## ProviderAdapter interface
+## Interfaz ProviderAdapter
 
 ```python
 class ProviderAdapter(Protocol):
@@ -78,115 +83,149 @@ class ProviderAdapter(Protocol):
     def render(self, skill_id: str, content_md: str) -> str: ...
 ```
 
-- `detect`: looks for provider fingerprints (`.claude/`, `.github/copilot*`,
-  `AGENTS.md` conventions, provider-specific config files).
-- `target_paths`: maps each skill id to the file path that provider expects
-  (may collapse multiple skill ids into one file for single-file providers).
-- `render`: converts the shared markdown content into that provider's
-  expected format (frontmatter shape, wrapping, concatenation).
+- `detect`: busca huellas del proveedor (`.claude/`, `.github/copilot*`,
+  convenciones de `AGENTS.md`, archivos de configuración propios del
+  proveedor).
+- `target_paths`: mapea cada id de skill a la ruta que ese proveedor espera
+  (puede colapsar varios ids de skill en un solo archivo para proveedores de
+  archivo único).
+- `render`: convierte el contenido markdown compartido al formato que ese
+  proveedor espera (forma del frontmatter, envoltura, concatenación).
 
-### Per-provider notes (v1, basic)
+### Autodetección — comportamiento por defecto, sin configuración
 
-- **Claude Code**: multi-file, `.claude/skills/<id>/SKILL.md`, YAML
-  frontmatter `name`/`description`.
-- **GitHub Copilot**: single file `.github/copilot-instructions.md`,
-  concatenates all phase content with headers.
-- **OpenAI Codex CLI**: single file `AGENTS.md` at repo root, plain markdown,
-  no frontmatter.
-- **OpenCode**: treated like Codex (`AGENTS.md` convention) for v1 basic
-  adapter — verify against current docs before implementing, format may
-  differ.
-- **Antigravity**: format not confidently known from current knowledge.
-  Adapter ships as best-effort; implementation task must include a web-search
-  verification step before writing it. If no reliable format is found,
-  fall back to a generic `AGENTS.md`-style file and flag it in the manifest
-  as `"confidence": "unverified"`.
+La autodetección **no es opcional ni requiere que el usuario indique qué
+proveedor usa**: es el único camino por defecto, para que instalar la fábrica
+sea lo más simple posible (un solo comando, cero preguntas en el caso común).
 
-## Lifecycle commands
+- `registry.detect(project_root)` corre **todos** los adapters contra el
+  proyecto y devuelve la lista completa de los que dieron positivo — un
+  proyecto con más de un proveedor configurado (ej. Claude Code y Copilot a
+  la vez) instala para ambos automáticamente, sin que el usuario tenga que
+  pedirlo.
+- El flag `--providers claude,copilot` existe solo como *override* explícito
+  para casos borde (forzar instalación de un proveedor sin huella detectable
+  aún, o limitar la instalación a un subconjunto) — nunca es necesario para
+  el uso normal.
+- Solo si `detect()` no encuentra ningún proveedor (proyecto nuevo, sin
+  ningún asistente configurado todavía) el CLI cae a un prompt interactivo
+  como último recurso. Este es el único punto de fricción permitido.
+- La detección se re-ejecuta en cada `factory update`, así que si se agrega
+  un proveedor nuevo al proyecto después de la instalación inicial, el
+  siguiente `update` lo detecta e instala sin pasos manuales adicionales.
 
-- `factory init [--providers claude,copilot,...]`
-  Detects providers present (registry.detect). If none detected, prompts
-  interactively which to install for. Renders content via each matched
-  adapter, writes files, records each written path + content hash in
+### Notas por proveedor (v1, básico)
+
+- **Claude Code**: multi-archivo, `.claude/skills/<id>/SKILL.md`,
+  frontmatter YAML `name`/`description`.
+- **GitHub Copilot**: archivo único `.github/copilot-instructions.md`,
+  concatena todo el contenido de fases con encabezados.
+- **OpenAI Codex CLI**: archivo único `AGENTS.md` en la raíz del repo,
+  markdown plano, sin frontmatter.
+- **OpenCode**: tratado como Codex (convención `AGENTS.md`) para el adapter
+  básico v1 — verificar contra la documentación vigente antes de
+  implementar, el formato puede diferir.
+- **Antigravity**: formato no conocido con confianza a partir del
+  conocimiento actual. El adapter se entrega best-effort; la tarea de
+  implementación debe incluir un paso de verificación por búsqueda web antes
+  de escribirlo de verdad. Si no se encuentra un formato confiable, cae a un
+  archivo genérico estilo `AGENTS.md` y lo marca en el manifest como
+  `"confidence": "unverified"`.
+
+## Comandos de ciclo de vida
+
+- `factory init`
+  Autodetecta proveedores presentes (`registry.detect`, ver sección de
+  autodetección arriba) — no requiere ningún argumento en el caso normal.
+  Renderiza el contenido vía cada adapter que dio positivo, escribe los
+  archivos, registra cada ruta escrita + hash de contenido en
   `.factory/manifest.json`.
 
 - `factory update`
-  Re-renders content from the currently installed package version. For each
-  previously-written file: if its on-disk hash still matches the manifest
-  hash (untouched by user), overwrite with the new render and update the
-  manifest hash + version. If the hash differs (user edited it manually),
-  skip and print a warning listing the file — never silently overwrite user
-  edits.
+  Vuelve a correr la autodetección (por si se agregó un proveedor nuevo) y
+  re-renderiza el contenido desde la versión del paquete actualmente
+  instalada. Para cada archivo escrito previamente: si su hash en disco
+  todavía coincide con el hash del manifest (no fue tocado por el usuario),
+  lo sobreescribe con el nuevo render y actualiza hash + versión en el
+  manifest. Si el hash difiere (el usuario lo editó a mano), lo salta e
+  imprime una advertencia con el archivo en cuestión — nunca pisa ediciones
+  del usuario en silencio.
 
 - `factory uninstall`
-  Reads `.factory/manifest.json`, deletes exactly the files it lists (skips
-  any whose hash no longer matches, warns instead of deleting), then removes
-  the manifest. Never touches files it didn't write.
+  Lee `.factory/manifest.json`, borra exactamente los archivos que lista
+  (salta los que ya no coinciden en hash, advierte en vez de borrar), y
+  después borra el manifest. Nunca toca archivos que no escribió.
 
 - `factory status`
-  Reads `.factory/log.jsonl` and `.factory/manifest.json`, prints: installed
-  version, detected providers, current phase (from latest phase-transition
-  event), QA coverage metrics, skill invocation counts.
+  Lee `.factory/log.jsonl` y `.factory/manifest.json`, imprime: versión
+  instalada, proveedores detectados, fase actual (del último evento de
+  transición de fase), métricas de cobertura de QA, conteo de invocaciones
+  por skill.
 
 - `factory log <event_type> [--data '<json>']`
-  Appends one line to `.factory/log.jsonl`: `{"ts", "event_type", "data"}`.
-  This is the hook phase-content skills call (via Bash/shell, since any
-  agent capable of running the factory skills can run a shell command) after
-  phase transitions, artifact creation, and — critically — advisor
-  disagreements, so audits can reconstruct what happened and why.
+  Agrega una línea a `.factory/log.jsonl`: `{"ts", "event_type", "data"}`.
+  Este es el hook que las skills de contenido de cada fase llaman (vía
+  Bash/shell, ya que cualquier agente capaz de correr las skills de la
+  fábrica puede correr un comando de shell) después de transiciones de fase,
+  creación de artefactos y — de forma crítica — desacuerdos del asesor, para
+  que las auditorías puedan reconstruir qué pasó y por qué.
 
-## State files (`.factory/`, git-tracked by default)
+## Archivos de estado (`.factory/`, versionados en git por defecto)
 
 - `manifest.json` — `{version, installed_at, providers: [...], files: [{path, hash, skill_id}]}`
-- `log.jsonl` — append-only event stream, one JSON object per line
-- `metrics.json` — computed cache (rebuilt from log.jsonl by `factory status`),
-  not hand-edited
+- `log.jsonl` — stream de eventos append-only, un objeto JSON por línea
+- `metrics.json` — caché calculada (reconstruida desde log.jsonl por
+  `factory status`), no se edita a mano
 
-## Advisor/auditor blocking behavior (cross-cutting, defined here since it
-affects the log schema)
+## Comportamiento de bloqueo del asesor/auditor (transversal, definido acá
+porque afecta el schema del log)
 
-The advisor persona (content spec, separate file) requires the agent to
-present pros/cons and an honest recommendation on every significant decision,
-even when it disagrees with the user. For a defined set of critical-risk
-categories (security, data loss, silently skipped tests, irreversible
-infra/deploy actions) the skill instructs the agent to require an explicit
-extra confirmation step before proceeding, and to log the disagreement via
+La persona asesora (spec de contenido, archivo separado) exige que el agente
+presente pros/contras y una recomendación honesta en cada decisión
+significativa, incluso en desacuerdo con el usuario. Para un conjunto
+definido de categorías de riesgo crítico (seguridad, pérdida de datos, tests
+saltados en silencio, acciones de infra/deploy irreversibles) la skill
+instruye al agente a exigir un paso de confirmación explícita adicional
+antes de continuar, y a loguear el desacuerdo vía
 `factory log advisor_block '{"category": ..., "reason": ..., "user_override": bool}'`.
-Non-critical disagreements are logged via `factory log advisor_note` but do
-not block.
+Los desacuerdos no críticos se loguean vía `factory log advisor_note` pero no
+bloquean.
 
-## Error handling
+## Manejo de errores
 
-- `update`/`uninstall` never delete or overwrite a file whose hash doesn't
-  match the manifest — always warn and skip instead.
-- `init` run twice on an already-installed project: detected as "already
-  installed" (manifest exists) — behaves like `update`, not a duplicate
-  install.
-- Missing `.factory/manifest.json` when running `update`/`uninstall`/`status`:
-  clear error telling the user to run `init` first.
-- Adapter `detect()` raising or a target path not writable: that provider is
-  skipped with a warning, other providers still proceed (partial install is
-  valid and recorded in the manifest).
+- `update`/`uninstall` nunca borran ni sobreescriben un archivo cuyo hash no
+  coincide con el manifest — siempre advierten y saltan en su lugar.
+- `init` corrido dos veces en un proyecto ya instalado: se detecta como "ya
+  instalado" (existe manifest) — se comporta como `update`, no como una
+  instalación duplicada.
+- Falta `.factory/manifest.json` al correr `update`/`uninstall`/`status`:
+  error claro pidiendo correr `init` primero.
+- `detect()` de un adapter lanza excepción o una ruta destino no es
+  escribible: ese proveedor se salta con una advertencia, los demás
+  proveedores detectados siguen adelante (una instalación parcial es válida
+  y queda registrada en el manifest).
 
 ## Testing
 
-pytest + pytest-mock, zero external IO (no real network, no real package
-registries). Filesystem operations exercised via `tmp_path`. Per Beck rules:
+pytest + pytest-mock, cero IO externo (sin red real, sin registries de
+paquetes reales). Operaciones de filesystem ejercitadas vía `tmp_path`. Según
+las reglas de Beck:
 
-- `test_adapters.py`: one test per adapter for `detect()` (positive/negative
-  fixture project trees) and `render()` (snapshot of rendered output).
-- `test_render.py`: content -> multi-provider rendering produces expected
-  file sets.
-- `test_state.py`: manifest hash tracking, log append-only invariant,
-  metrics aggregation from a fixture log.
-- `test_cli.py`: init/update/uninstall idempotency and the "don't clobber
-  user edits" behavior specifically (this is the one non-trivial branch in
-  the whole system — gets a dedicated test).
+- `test_adapters.py`: un test por adapter para `detect()` (fixtures de
+  árbol de proyecto positivos/negativos) y `render()` (snapshot del output
+  renderizado).
+- `test_render.py`: contenido -> renderizado multi-proveedor produce el
+  conjunto de archivos esperado.
+- `test_state.py`: tracking de hash del manifest, invariante append-only del
+  log, agregación de métricas desde un log fixture.
+- `test_cli.py`: idempotencia de init/update/uninstall y específicamente el
+  comportamiento de "no pisar ediciones del usuario" (es la única rama no
+  trivial de todo el sistema — tiene test dedicado).
 
-## Open questions / risks flagged for the implementation plan
+## Preguntas abiertas / riesgos marcados para el plan de implementación
 
-- Antigravity's actual skill-loading convention needs verification via web
-  search before that adapter is implemented for real — do not fabricate the
-  format.
-- OpenCode's current convention should also be confirmed, not assumed
-  identical to Codex.
+- La convención real de carga de skills de Antigravity necesita
+  verificación por búsqueda web antes de implementar ese adapter de verdad —
+  no fabricar el formato.
+- La convención actual de OpenCode también debe confirmarse, no asumirse
+  idéntica a la de Codex.
