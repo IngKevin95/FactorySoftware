@@ -268,7 +268,10 @@ del núcleo (subagente paralelo si el proveedor lo soporta, serie si no).
   paralelizable: true
   # última pasada antes del PR: el código de la épica sigue fiel a la
   # intención de negocio de sus HU y a las decisiones de las ADR que le
-  # aplican, no solo a la letra del contrato técnico (ver checklist)
+  # aplican, no solo a la letra del contrato técnico — y se corre contra
+  # develop actual (con otras Épicas ya mergeadas), no solo contra el
+  # diff propio, así cubre lo que sería una auditoría de release sin
+  # necesitar un paso aparte (ver checklist)
 
 - id: pr_gate [mecánico + pregunta al usuario]
   depende_de: [construction_integral_audit]
@@ -395,7 +398,7 @@ iii. Las ADR fundacionales (stack, artefactos/método de despliegue) están
    elige contenedores, ninguna tarea asume un modelo de despliegue
    distinto).
 
-### `construction_integral_audit` (rol: Auditor Integral, contra Arquitectura + Requerimientos)
+### `construction_integral_audit` (rol: Auditor Integral, contra Arquitectura + Requerimientos + el resto del sistema ya integrado)
 
 iv. El código de la épica sigue siendo fiel a la intención de negocio de
    cada HU que implementa (no solo pasa los tests, sino que un lector
@@ -405,6 +408,18 @@ v. Ninguna ADR quedó parcialmente aplicada (ej. la ADR de despliegue exige
    configuración de contenedor y el código no la incluye).
 vi. No hay funcionalidad construida que no esté respaldada por ninguna HU
    ni ADR (scope creep en código, no solo en documentación).
+vii. **Alcance de "release completo", sin paso aparte**: este chequeo no se
+   limita al diff de la épica en aislamiento — se corre contra el estado
+   actual real de `develop` (con las demás Épicas ya mergeadas incluidas),
+   no solo contra la rama de la épica sola. Verifica que integrar esta
+   épica no genera inconsistencia con Épicas ya integradas (contratos
+   compartidos, entidades de datos tocadas por más de una épica, HU
+   transversales sugeridas en Requerimientos que varias épicas debían
+   cubrir en conjunto). Esto cubre lo que en otros diseños es una auditoría
+   de "release" separada — acá no se agrega un paso nuevo al pipeline, se
+   amplía el alcance de este mismo paso para que la última Épica en
+   mergearse cierre con una foto real del sistema completo, no solo de su
+   propio diff.
 
 ## Extensión del CLI del núcleo
 
