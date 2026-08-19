@@ -172,3 +172,30 @@ def test_status_step_prints_pendiente_or_completado(tmp_path: Path, capsys):
     ])
     code = main(["status", "--project-root", str(tmp_path), "--step", "requirements.prd"])
     assert capsys.readouterr().out.strip() == "completado"
+
+
+def test_full_lifecycle_init_update_uninstall(tmp_path: Path):
+    content_dir = _make_content_dir(tmp_path)
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".github").mkdir()
+
+    code = main(["init", "--project-root", str(tmp_path), "--content-dir", str(content_dir)])
+    assert code == 0
+    assert (tmp_path / ".claude" / "skills" / "requirements-prd" / "SKILL.md").exists()
+    assert (tmp_path / ".github" / "copilot-instructions.md").exists()
+
+    (content_dir / "requirements.md").write_text(
+        _FIXTURE_PHASE.replace("Hacé el PRD.", "Hacé el PRD (v2)."), encoding="utf-8"
+    )
+    code = main(["update", "--project-root", str(tmp_path), "--content-dir", str(content_dir)])
+    assert code == 0
+    assert "v2" in (tmp_path / ".claude" / "skills" / "requirements-prd" / "SKILL.md").read_text(encoding="utf-8")
+
+    code = main(["status", "--project-root", str(tmp_path), "--write"])
+    assert code == 0
+    assert (tmp_path / ".factory" / "board.md").exists()
+
+    code = main(["uninstall", "--project-root", str(tmp_path)])
+    assert code == 0
+    assert not (tmp_path / ".claude" / "skills" / "requirements-prd").exists()
+    assert not (tmp_path / ".factory" / "manifest.json").exists()
