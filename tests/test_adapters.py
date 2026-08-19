@@ -169,3 +169,26 @@ def test_detect_skips_adapter_that_raises_and_keeps_others(tmp_path: Path, capsy
     found = registry.detect(tmp_path, adapters=[_Raises(), _AlwaysYes()])
     assert [a.name for a in found] == ["always_yes"]
     assert "raises" in capsys.readouterr().err
+
+
+from factorysoftware.adapters.copilot import CopilotAdapter
+
+
+def test_copilot_detect_true_with_dot_github(tmp_path: Path):
+    (tmp_path / ".github").mkdir()
+    assert CopilotAdapter().detect(tmp_path) is True
+
+
+def test_copilot_detect_false_when_absent(tmp_path: Path):
+    assert CopilotAdapter().detect(tmp_path) is False
+
+
+def test_copilot_target_paths_all_same_file(tmp_path: Path):
+    paths = CopilotAdapter().target_paths(tmp_path, ["requirements-prd", "requirements-flujo"])
+    assert paths["requirements-prd"] == paths["requirements-flujo"] == tmp_path / ".github" / "copilot-instructions.md"
+
+
+def test_copilot_render_adds_heading():
+    rendered = CopilotAdapter().render("requirements-prd", "Hacé el PRD.")
+    assert rendered.startswith("## requirements-prd")
+    assert "Hacé el PRD." in rendered
