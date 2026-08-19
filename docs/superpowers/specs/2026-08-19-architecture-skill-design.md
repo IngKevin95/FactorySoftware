@@ -50,6 +50,10 @@ docs/architecture/
 Mismo criterio que Requerimientos: un archivo por unidad, no documentos
 monolíticos — diffs legibles y fan-out paralelizable por API/pantalla.
 
+El único artefacto de esta fase que no es markdown puro es el prototipo de
+UI, que vive fuera de `docs/`, en `prototype/` sobre la rama
+`architecture/ui-prototype` — ver sección "Prototipo de UI" más abajo.
+
 ### Esquema de IDs y trazabilidad
 
 - `ADR-N`, `API-N`, `SCREEN-N`: secuenciales, nunca reusados (mismo criterio
@@ -163,9 +167,30 @@ Frontmatter: `id`, `implementa` (ids de HU), `estado`, `apis_consumidas`
 (ids de API-N que esta pantalla usa). Cuerpo: descripción de la pantalla a
 nivel de wireframe textual (componentes, layout, estados — vacío/carga/error/
 éxito), reglas de UI/UX (validaciones visibles, navegación, responsive
-si aplica). No es diseño visual pixel-perfect (eso es una skill de UI
-distinta, fuera de alcance); es el contrato funcional-técnico que
-Construcción necesita para armar el componente real.
+si aplica). No es diseño visual pixel-perfect; es el contrato
+funcional-técnico que tanto el prototipo (`ui_prototype`, siguiente paso)
+como Construcción usan para armar el componente real.
+
+## Prototipo de UI: ubicación, rama y revisión asistida
+
+A diferencia del resto de esta fase (solo documentación), `ui_prototype`
+produce código real corrible. Vive en una rama dedicada
+`architecture/ui-prototype`, creada desde `develop`, en una carpeta
+`prototype/` en la raíz del repo — separada del código de producción que
+Construcción arma después, para que quede claro que es un artefacto de
+validación, no el componente final todavía.
+
+Revisión: el usuario debe poder correrlo y verlo/interactuarlo antes de
+aprobar la fase (usar el skill `run` del proyecto si está disponible, o las
+instrucciones de arranque que el propio prototipo documenta). Esto es lo que
+hace la construcción "asistida" — no es solo un documento que el usuario lee
+y aprueba a ciegas, es algo que se prueba.
+
+No es descartable: cuando Construcción arranca la rama `feature/EPIC-N-...`
+de una épica, la crea desde `architecture/ui-prototype` (si existe y fue
+aprobado) en vez de desde `develop` a secas, y las tareas de rol `frontend`
+refinan ese código de prototipo a producción en vez de reescribirlo de cero.
+Esto ajusta `branch_setup` en el spec de Construcción (ver ese spec).
 
 ## Pipeline de ejecución (usa el mecanismo transversal del núcleo)
 
@@ -224,11 +249,22 @@ modo automático que encadena todo hasta `integral_audit` y el gate.
   # depende de apis (no solo de data_model) porque cada pantalla necesita
   # conocer el contrato real de los endpoints que va a consumir
 
+- id: ui_prototype
+  depende_de: [screens]
+  fan_out: "una instancia por cada SCREEN-N.md generado"
+  paralelizable: true
+  # convierte el wireframe textual de cada SCREEN-N.md en un prototipo real
+  # corrible/clickeable (no descriptivo), usando el stack de la ADR de
+  # arquitectura cuando aplica, o HTML/CSS plano si conviene ir más rápido.
+  # No es descartable: Construcción lo toma como punto de partida y lo
+  # refina a producción en vez de reconstruir desde cero (ver sección de
+  # ubicación y rama más abajo)
+
 - id: gap_check_and_traceability [rol: Auditor de fase]
-  depende_de: [apis, screens]
+  depende_de: [apis, screens, ui_prototype]
   fan_out: null
   paralelizable: false
-  # Auditor (checklist estructural 1-5 + semántico 6-8, ver más abajo).
+  # Auditor (checklist estructural 1-6 + semántico 7-10, ver más abajo).
   # Actualiza traceability.md de Requerimientos con los ids de
   # API-N/SCREEN-N que implementan cada HU
 
@@ -292,22 +328,29 @@ Verificaciones estructurales (mecánicas):
    existe (o que está `retirada`).
 5. `traceability.md` de Requerimientos queda con la columna "Componentes de
    arquitectura" completa para toda HU no retirada.
+6. Todo `SCREEN-N.md` tiene su contraparte corrible en `prototype/` sobre la
+   rama `architecture/ui-prototype` — un `SCREEN-N.md` sin prototipo real es
+   hallazgo bloqueante, no queda como "pendiente para después".
 
 Verificaciones de juicio (semánticas):
 
-6. El stack elegido (ADR-1) es técnicamente capaz de cumplir los criterios
+7. El stack elegido (ADR-1) es técnicamente capaz de cumplir los criterios
    de aceptación de las HU que dependen de él (ej. si una HU exige tiempo
    real y el stack elegido no soporta bien ese patrón, es un hallazgo
    bloqueante, no un detalle menor).
-7. Los diagramas de `architecture-overview.md` son coherentes con lo que
+8. Los diagramas de `architecture-overview.md` son coherentes con lo que
    describen `data-model.md` y los `API-N.md` (sin componentes en el
    diagrama que no tienen contrato, ni contratos de componentes ausentes del
    diagrama).
-8. Las ADR no se contradicen entre sí (ninguna decisión posterior invalida
-   silenciosamente una anterior sin una nueva ADR que la reemplace
-   explícitamente marcando la vieja como `retirada`).
+9. El prototipo corrible de cada pantalla refleja fielmente los estados y
+   reglas de UI/UX descritos en su `SCREEN-N.md` (vacío/carga/error/éxito,
+   validaciones visibles) — no es solo "algo que corre", tiene que cumplir
+   el contrato.
+10. Las ADR no se contradicen entre sí (ninguna decisión posterior invalida
+    silenciosamente una anterior sin una nueva ADR que la reemplace
+    explícitamente marcando la vieja como `retirada`).
 
-Las verificaciones 1–5 se ejecutan de forma determinística; las 6–8 y a–d
+Las verificaciones 1–6 se ejecutan de forma determinística; las 7–10 y a–d
 quedan a cargo del paso de auditoría semántica definido en el núcleo.
 
 ### Checklist de `integral_audit` (rol: Auditor Integral)
@@ -339,21 +382,24 @@ fase anterior.
 ## Extensión del CLI del núcleo
 
 `factory validate architecture` — corre las verificaciones estructurales
-1–5 sobre `docs/architecture/` cruzado con `docs/requirements/`, devuelve
-lista de problemas (vacía si todo bien). Mismo patrón que
-`factory validate requirements`.
+1–6 sobre `docs/architecture/` (incluyendo que exista el prototipo corrible
+de cada `SCREEN-N.md`) cruzado con `docs/requirements/`, devuelve lista de
+problemas (vacía si todo bien). Mismo patrón que `factory validate
+requirements`.
 
 ## Manejo de errores / casos borde
 
 - Una HU con anexo funcional de endpoint que el stack elegido no puede
-  cumplir tal como está redactada: hallazgo bloqueante de la verificación 6,
+  cumplir tal como está redactada: hallazgo bloqueante de la verificación 7,
   se escala al usuario con la ADR y la HU en conflicto — no se reinterpreta
   la HU para que "encaje" sin decírselo al usuario.
 - `SCREEN-N.md` que consume un `API-N.md` todavía no generado (por orden de
   ejecución roto): la validación estructural 3 lo detecta antes de llegar al
   gate humano.
+- `SCREEN-N.md` sin prototipo corrible correspondiente: hallazgo bloqueante
+  de la verificación estructural 6, detectado antes del gate.
 - ADR que reemplaza una decisión anterior sin marcar la vieja como retirada:
-  hallazgo bloqueante de la verificación 8, no queda como ambigüedad
+  hallazgo bloqueante de la verificación 10, no queda como ambigüedad
   silenciosa en el historial de decisiones.
 - ADR con una sola alternativa "obvia" y sin fundamento teórico citado: el
   checkpoint `adrs_audit` la rechaza antes de que `overview` llegue a
@@ -367,9 +413,10 @@ lista de problemas (vacía si todo bien). Mismo patrón que
 pytest, cero IO externo, fixtures de árbol de documentos en `tmp_path`:
 
 - `test_validate_architecture.py`: caso positivo completo y un caso negativo
-  por cada verificación estructural 1–5 (HU de endpoint sin API, HU de
+  por cada verificación estructural 1–6 (HU de endpoint sin API, HU de
   pantalla sin screen, `apis_consumidas` inexistente, `implementa` con HU
-  inexistente/retirada, columna de trazabilidad incompleta).
+  inexistente/retirada, columna de trazabilidad incompleta, SCREEN-N sin
+  prototipo corrible).
 
 ## Preguntas abiertas para specs futuros
 
