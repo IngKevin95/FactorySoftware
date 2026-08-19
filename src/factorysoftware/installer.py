@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from factorysoftware.adapters.base import ProviderAdapter
-from factorysoftware.state import ManifestFile, compute_hash
+from factorysoftware.content import parse_content
+from factorysoftware.render import build_skill_map
+from factorysoftware.state import Manifest, ManifestFile, compute_hash, write_manifest
+
+_VERSION = "0.1.0"
 
 
 def write_skills(
@@ -30,3 +36,26 @@ def write_skills(
             )
         )
     return files
+
+
+def install_all(
+    project_root: Path, content_dir: Path, adapters: list[ProviderAdapter]
+) -> Manifest:
+    all_files = []
+    for content_path in sorted(content_dir.glob("*.md")):
+        content = parse_content(content_path)
+        skill_map = build_skill_map(content)
+        for adapter in adapters:
+            try:
+                all_files.extend(write_skills(project_root, adapter, skill_map))
+            except OSError as e:
+                print(f"Advertencia: el adapter '{adapter.name}' falló al escribir ({e}), se salta", file=sys.stderr)
+
+    manifest = Manifest(
+        version=_VERSION,
+        installed_at=datetime.now(timezone.utc).isoformat(),
+        providers=[a.name for a in adapters],
+        files=all_files,
+    )
+    write_manifest(project_root, manifest)
+    return manifest
