@@ -69,7 +69,12 @@ Cada tarea:
 
 ## Rama y aislamiento de trabajo paralelo
 
-- Una rama `feature/EPIC-N-<slug>` por Épica, creada desde `develop`.
+- Una rama `feature/EPIC-N-<slug>` por Épica. Se crea desde
+  `architecture/ui-prototype` si esa rama existe y fue aprobada en
+  Arquitectura (así las tareas de rol `frontend` refinan el prototipo real
+  en vez de reescribirlo desde cero); si no existe (proyecto sin pantallas,
+  o fase de Arquitectura anterior a que este paso existiera), se crea desde
+  `develop` directamente.
 - Las tareas de una misma épica que el plan marca como independientes entre
   sí (sin relación de `depende_de`) se ejecutan en **git worktrees**
   aislados (mecanismo estándar de Git, sin herramienta adicional — ver
@@ -134,7 +139,8 @@ del núcleo (subagente paralelo si el proveedor lo soporta, serie si no).
   depende_de: [plan_integral_audit]
   fan_out: "una instancia por Épica con plan aprobado"
   paralelizable: true
-  # crea feature/EPIC-N-<slug> desde develop
+  # crea feature/EPIC-N-<slug> desde architecture/ui-prototype si existe,
+  # si no desde develop
 
 - id: task_execution [agéntico]
   depende_de: [branch_setup]
