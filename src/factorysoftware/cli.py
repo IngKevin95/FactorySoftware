@@ -9,6 +9,7 @@ from factorysoftware.adapters import registry
 from factorysoftware.architecture.validator import validate_architecture as _validate_arch
 from factorysoftware.installer import install_all, update_all, uninstall_all
 from factorysoftware.requirements.validator import validate_requirements
+from factorysoftware.qa.validator import validate_qa
 from factorysoftware.construction.validator import validate_construction
 from factorysoftware.construction.triage import decide_dimensions
 from factorysoftware.state import (
@@ -150,6 +151,13 @@ def cmd_validate_construction(args: argparse.Namespace) -> int:
     return 1 if errors else 0
 
 
+def cmd_validate_qa(args: argparse.Namespace) -> int:
+    errors = validate_qa(Path(args.project_root))
+    for e in errors:
+        print(e, file=sys.stderr)
+    return 1 if errors else 0
+
+
 def cmd_audit_triage(args: argparse.Namespace) -> int:
     import subprocess
     project_root = Path(args.project_root)
@@ -219,6 +227,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = validate_sub.add_parser("construction")
     p.add_argument("--project-root", default=".")
     p.set_defaults(func=cmd_validate_construction)
+
+    p = validate_sub.add_parser("qa")
+    p.add_argument("--project-root", default=".")
+    p.set_defaults(func=cmd_validate_qa)
 
     return parser
 
