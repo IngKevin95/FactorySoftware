@@ -128,11 +128,6 @@ def uninstall_all(project_root: Path) -> list[str]:
             warnings.append(f"{f.path} (skill(s): {f.skill_id}) fue editado a mano, no se borra")
             continue
         path.unlink()
-        # Remove empty parent directories
-        try:
-            path.parent.rmdir()
-        except OSError:
-            pass
 
     if not warnings:
         (project_root / ".factory" / "manifest.json").unlink(missing_ok=True)

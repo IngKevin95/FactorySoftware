@@ -114,4 +114,4 @@ def test_uninstall_after_init_removes_files(tmp_path: Path):
     main(["init", "--project-root", str(tmp_path), "--content-dir", str(content_dir), "--providers", "claude_code"])
     code = main(["uninstall", "--project-root", str(tmp_path)])
     assert code == 0
-    assert not (tmp_path / ".claude" / "skills" / "requirements-prd").exists()
+    assert not (tmp_path / ".claude" / "skills" / "requirements-prd" / "SKILL.md").exists()
