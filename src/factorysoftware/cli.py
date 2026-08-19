@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from factorysoftware.adapters import registry
+from factorysoftware.architecture.validator import validate_architecture as _validate_arch
 from factorysoftware.installer import install_all, update_all, uninstall_all
 from factorysoftware.requirements.validator import validate_requirements
 from factorysoftware.state import (
@@ -133,6 +134,13 @@ def cmd_validate_requirements(args: argparse.Namespace) -> int:
     return 1 if errors else 0
 
 
+def cmd_validate_architecture(args) -> int:
+    errors = _validate_arch(Path(args.project_root))
+    for e in errors:
+        print(e)
+    return 1 if errors else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="factory")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -169,6 +177,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--project-root", default=".")
     p.add_argument("--log", default=".factory/log.jsonl")
     p.set_defaults(func=cmd_validate_requirements)
+
+    p = validate_sub.add_parser("architecture")
+    p.add_argument("--project-root", default=".")
+    p.set_defaults(func=cmd_validate_architecture)
 
     return parser
 
