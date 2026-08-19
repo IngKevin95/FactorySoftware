@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 
 from factorysoftware.cli import main
@@ -57,3 +58,45 @@ def test_update_without_prior_init_errors(tmp_path: Path, capsys):
     code = main(["update", "--project-root", str(tmp_path), "--content-dir", str(content_dir)])
     assert code != 0
     assert "init" in capsys.readouterr().err.lower()
+
+
+def test_update_falls_back_to_manifest_providers_when_nothing_detected(tmp_path: Path):
+    content_dir = _make_content_dir(tmp_path)
+    (tmp_path / ".claude").mkdir()
+    init_code = main([
+        "init", "--project-root", str(tmp_path), "--content-dir", str(content_dir),
+        "--providers", "claude_code",
+    ])
+    assert init_code == 0
+    skill_path = tmp_path / ".claude" / "skills" / "requirements-prd" / "SKILL.md"
+    assert skill_path.exists()
+
+    # Remove the marker directory the adapter's detect() relies on, so a
+    # plain registry.detect() on the next call finds nothing.
+    shutil.rmtree(tmp_path / ".claude")
+
+    code = main(["update", "--project-root", str(tmp_path), "--content-dir", str(content_dir)])
+    assert code == 0
+    # update_all recreated the file using the provider recorded in the
+    # manifest, proving the detect-nothing fallback to manifest.providers
+    # kicked in rather than silently doing nothing.
+    assert skill_path.exists()
+
+
+def test_update_prints_warning_for_hand_edited_file(tmp_path: Path, capsys):
+    content_dir = _make_content_dir(tmp_path)
+    (tmp_path / ".claude").mkdir()
+    init_code = main([
+        "init", "--project-root", str(tmp_path), "--content-dir", str(content_dir),
+        "--providers", "claude_code",
+    ])
+    assert init_code == 0
+    skill_path = tmp_path / ".claude" / "skills" / "requirements-prd" / "SKILL.md"
+    skill_path.write_text("edited by hand, not by factory", encoding="utf-8")
+
+    code = main(["update", "--project-root", str(tmp_path), "--content-dir", str(content_dir)])
+    assert code == 0
+    err = capsys.readouterr().err
+    assert "editado a mano" in err.lower()
+    # The hand-edited content must not have been overwritten.
+    assert skill_path.read_text(encoding="utf-8") == "edited by hand, not by factory"
