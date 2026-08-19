@@ -31,6 +31,8 @@ Content pack de la fábrica que guía al agente para producir el conjunto de doc
 
 ## Paso: prd
 
+### Paso 1: prd — PRD.md
+
 Produce `docs/requirements/PRD.md`. Primer paso del pipeline de requerimientos; sin prerequisitos.
 
 ## Verificacion de prerequisitos
@@ -60,6 +62,8 @@ Archivo `docs/requirements/PRD.md` con estas secciones en orden (sin detalle tec
 - [ ] Confirmar al usuario que el PRD fue guardado y mostrar su ruta.
 
 ## Paso: epics
+
+### Paso 2: epics — EPIC-N.md
 
 Produce `docs/requirements/epics/EPIC-N.md` - un archivo por cada epica.
 Requiere que `docs/requirements/PRD.md` exista.
@@ -104,6 +108,8 @@ Crear epicas adicionales solo para las sugerencias que el usuario acepte explici
 
 ## Paso: hu_por_epica
 
+### Paso 3: hu_por_epica — HU-N.M.md (una instancia por epica)
+
 Produce `docs/requirements/stories/HU-N.M.md` para todas las HU de UNA epica.
 Se invoca una vez por epica. Si el proveedor soporta subagentes paralelos, cada instancia corre en paralelo para su epica; si no, se corre una a la vez de forma secuencial - NUNCA en una sola pasada para todas las epicas juntas.
 
@@ -140,6 +146,8 @@ Esta instancia recibe SOLO:
 
 ## Paso: traceability
 
+### Paso 4: traceability — traceability.md
+
 Produce `docs/requirements/traceability.md` - tabla con una fila por cada HU no retirada.
 Requiere que todos los pasos `hu_por_epica` esten completos en el log.
 Corre en paralelo con el paso `flujos` (ambos dependen solo de `hu_por_epica`).
@@ -169,6 +177,8 @@ Archivo `docs/requirements/traceability.md` con tabla markdown:
 - [ ] Logear `{"type": "step_complete", "step": "traceability", "output_files": ["docs/requirements/traceability.md"]}`.
 
 ## Paso: flujos
+
+### Paso 5: flujos — FLUJO-N.md
 
 Produce `docs/requirements/flujos/FLUJO-N.md` - un archivo por cada flujo de negocio identificado.
 Corre en paralelo con el paso `traceability` (ambos dependen solo de `hu_por_epica`).
@@ -203,6 +213,8 @@ Corre en paralelo con el paso `traceability` (ambos dependen solo de `hu_por_epi
 - [ ] Logear `{"type": "step_complete", "step": "flujos", "output_files": [...lista de archivos creados...]}`.
 
 ## Paso: audit_loop
+
+### Paso 6: audit_loop — validacion, correccion y aprobacion humana
 
 Loop auditor-constructor (maximo 3 iteraciones) + gate de aprobacion humana explicita.
 No avanza a Arquitectura sin aprobacion del usuario.

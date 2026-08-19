@@ -6,7 +6,7 @@ from factorysoftware.render import build_skill_map
 
 CONTENT_PATH = (
     Path(__file__).parent.parent
-    / "src" / "factorysoftware" / "content" / "requirements" / "requirements.md"
+    / "src" / "factorysoftware" / "content" / "requirements.md"
 )
 
 ALL_STEP_IDS = ["prd", "epics", "hu_por_epica", "traceability", "flujos", "audit_loop"]
@@ -117,3 +117,19 @@ def test_flujo_orchestrator_chains_all_six_steps():
         "approved_by",
     ]:
         assert marker in orchestrator, f"orchestrator missing content referencing {marker}"
+
+
+def test_installer_discovers_requirements_pack_at_its_real_path():
+    """Regression test for the bug where the content pack lived one directory
+    too deep (content/requirements/requirements.md) and was never found by
+    the installer's non-recursive content_dir.glob("*.md").
+
+    This exercises the actual discovery path the installer uses (via
+    _default_content_dir()), not a hand-built CONTENT_PATH, so it would have
+    caught the bug and will catch it again for any future content pack.
+    """
+    from factorysoftware.installer import _load_skill_map
+    from factorysoftware.cli import _default_content_dir
+
+    skills = _load_skill_map(_default_content_dir())
+    assert ALL_SKILL_IDS <= set(skills)
