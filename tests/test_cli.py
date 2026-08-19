@@ -100,3 +100,18 @@ def test_update_prints_warning_for_hand_edited_file(tmp_path: Path, capsys):
     assert "editado a mano" in err.lower()
     # The hand-edited content must not have been overwritten.
     assert skill_path.read_text(encoding="utf-8") == "edited by hand, not by factory"
+
+
+def test_uninstall_without_prior_init_errors(tmp_path: Path, capsys):
+    code = main(["uninstall", "--project-root", str(tmp_path)])
+    assert code != 0
+    assert "init" in capsys.readouterr().err.lower()
+
+
+def test_uninstall_after_init_removes_files(tmp_path: Path):
+    content_dir = _make_content_dir(tmp_path)
+    (tmp_path / ".claude").mkdir()
+    main(["init", "--project-root", str(tmp_path), "--content-dir", str(content_dir), "--providers", "claude_code"])
+    code = main(["uninstall", "--project-root", str(tmp_path)])
+    assert code == 0
+    assert not (tmp_path / ".claude" / "skills" / "requirements-prd").exists()

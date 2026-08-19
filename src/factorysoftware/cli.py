@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from factorysoftware.adapters import registry
-from factorysoftware.installer import install_all, update_all
+from factorysoftware.installer import install_all, update_all, uninstall_all
 from factorysoftware.state import read_manifest
 
 
@@ -61,6 +61,17 @@ def cmd_update(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_uninstall(args: argparse.Namespace) -> int:
+    project_root = Path(args.project_root)
+    if read_manifest(project_root) is None:
+        print("No hay instalación previa. Corré 'factory init' primero.", file=sys.stderr)
+        return 1
+    warnings = uninstall_all(project_root)
+    for w in warnings:
+        print(f"Advertencia: {w}", file=sys.stderr)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="factory")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -71,6 +82,10 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--content-dir", default=None)
         p.add_argument("--providers", default=None)
         p.set_defaults(func=fn)
+
+    p = sub.add_parser("uninstall")
+    p.add_argument("--project-root", default=".")
+    p.set_defaults(func=cmd_uninstall)
 
     return parser
 
