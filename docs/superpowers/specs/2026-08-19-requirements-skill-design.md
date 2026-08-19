@@ -57,7 +57,12 @@ unidad de negocio.
 
 ## Pipeline de ejecución (usa el mecanismo transversal del núcleo)
 
-Sigue el formato de declaración de pasos definido en el spec del núcleo. La
+Sigue el formato de declaración de pasos definido en el spec del núcleo, y
+por lo tanto cada paso es invocable manualmente (ej. "generá solo el PRD",
+"armá las HU de EPIC-2") con el chequeo de prerequisitos del núcleo — pedir
+`hu_por_epica` sin que `epics` esté completo no ejecuta nada, informa qué
+falta y sugiere correrlo primero — además del modo automático que encadena
+todo hasta `audit_loop`. La
 generación de HU por épica es el único paso con fan-out paralelizable: cada
 épica ya tiene su meta de negocio fijada por el paso anterior, así que
 redactar las HU de una épica no requiere ver las HU de las demás — candidato

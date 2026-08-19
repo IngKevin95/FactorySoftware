@@ -169,6 +169,11 @@ Construcción necesita para armar el componente real.
 
 ## Pipeline de ejecución (usa el mecanismo transversal del núcleo)
 
+Cada paso es invocable manualmente (ej. "corré solo `apis`") con el chequeo
+de prerequisitos del núcleo — pedir `apis` sin que `adrs_audit` haya cerrado
+no ejecuta nada, informa qué falta y sugiere correrlo primero — además del
+modo automático que encadena todo hasta `integral_audit` y el gate.
+
 ```
 - id: constraints
   depende_de: []

@@ -93,6 +93,12 @@ contra `traceability.md`.
 
 ## Pipeline de ejecución (usa el mecanismo transversal del núcleo)
 
+Cada paso es invocable manualmente (ej. "planificá solo la épica 3") con el
+chequeo de prerequisitos del núcleo — pedir `task_execution` sin
+`branch_setup` completo no ejecuta nada, informa qué falta y sugiere
+correrlo primero — además del modo automático que encadena todo hasta
+`pr_gate`.
+
 Los pasos marcados "mecánico" son determinísticos (comandos de git/test
 runner, sin necesidad de juicio de un agente) y se ejecutan como tool calls
 directos, no requieren despacho de subagente aunque tengan fan-out. Los
