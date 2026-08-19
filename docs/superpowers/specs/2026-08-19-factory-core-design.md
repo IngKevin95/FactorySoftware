@@ -78,7 +78,9 @@ src/factorysoftware/
     antigravity.py
     registry.py             # detect() -> list[ProviderAdapter] presentes en el proyecto
   content/                 # *.md fuente, única fuente de verdad
-    advisor.md
+    advisor.md               # persona Asesor: pros/contras honestos durante la decisión
+    auditor.md                # persona Auditor: ejecuta los checklists de cada fase
+    auditor_integral.md       # persona Auditor Integral: coherencia entre fase actual y la anterior
     requirements.md
     architecture.md
     construction.md
@@ -238,13 +240,44 @@ auditoría automática antes de pedirle al usuario que apruebe:
    usuario mostrando qué quedó pendiente y por qué — nunca loopea indefinido
    ni se "auto-aprueba" por cansancio del ciclo.
 5. Cada iteración del loop se registra vía
-   `factory log audit_iteration '{"phase": ..., "iteration": N, "findings": [...]}'`,
-   y el resultado final (aprobado / escalado) vía
+   `factory log audit_iteration '{"phase": ..., "role": "auditor"|"auditor_integral", "iteration": N, "findings": [...]}'`
+   (el campo `role` distingue si el hallazgo vino del Auditor de fase o del
+   Auditor Integral), y el resultado final (aprobado / escalado) vía
    `factory log phase_gate '{"phase": ..., "result": "approved"|"escalated", "iterations": N}'`.
 6. Pasar la auditoría automática es condición necesaria pero no suficiente
    para avanzar de fase — el gate de aprobación humana explícita (definido
    por cada spec de fase) sigue aplicando después de que el loop cierra
    limpio.
+
+## Dos roles de auditoría (transversal, obligatorio en toda fase)
+
+El "loop auditor-constructor" de la sección anterior no es un solo rol
+difuso — son dos roles distintos, cada uno con su propia persona de
+contenido (`content/auditor.md`, `content/auditor_integral.md`), separados
+del Asesor (`content/advisor.md`, que opina *durante* la construcción de un
+artefacto) y del agente constructor:
+
+1. **Auditor** (`content/auditor.md`) — corre el checklist de **una sola
+   fase**, contra su propio criterio de completitud/coherencia interna (ej.
+   el checklist de `adrs_audit` o el cierre de Requerimientos). Es el que
+   ejecuta las iteraciones 1–3 del loop descrito arriba dentro de esa fase.
+2. **Auditor Integral** (`content/auditor_integral.md`) — corre **después**
+   de que el Auditor de fase cierra limpio, y valida coherencia **entre la
+   fase que cierra y la fase anterior que le dio origen**: lee el conjunto
+   completo de documentos de ambas fases (no solo cruza ids mecánicamente,
+   ya cubierto por el checklist estructural de cada fase) y verifica que
+   ningún objetivo/métrica de éxito de la fase anterior quedó silenciosamente
+   sin cubrir, y que la fase que cierra no introdujo alcance sin respaldo en
+   la fase anterior (scope creep). Obligatorio en toda fase que tenga una
+   fase previa de la que depender — Requerimientos no lo necesita (es la
+   primera fase), Arquitectura sí (contra Requerimientos), Construcción sí
+   (contra Arquitectura), QA sí (contra Construcción).
+
+Ambos roles se despachan siguiendo la misma regla del núcleo: agente
+independiente si el proveedor lo soporta, autocrítica estructurada si no. El
+Auditor Integral corre como el último paso agéntico antes del gate de
+aprobación humana de cada fase — después de él, ya no hay más auditoría
+automática, solo la decisión del usuario.
 
 ## Pipeline de pasos agénticos (transversal, obligatorio en todo proveedor)
 
