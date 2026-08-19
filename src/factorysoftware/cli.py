@@ -7,7 +7,7 @@ from pathlib import Path
 
 from factorysoftware.adapters import registry
 from factorysoftware.installer import install_all, update_all, uninstall_all
-from factorysoftware.requirements.validator import validate_requirements as _validate_reqs
+from factorysoftware.requirements.validator import validate_requirements
 from factorysoftware.state import (
     append_log,
     read_log,
@@ -127,7 +127,7 @@ def cmd_log(args: argparse.Namespace) -> int:
 def cmd_validate_requirements(args: argparse.Namespace) -> int:
     project_root = Path(args.project_root)
     log_path = Path(args.log)
-    errors = _validate_reqs(project_root, log_path)
+    errors = validate_requirements(project_root, log_path)
     for e in errors:
         print(e)
     return 1 if errors else 0

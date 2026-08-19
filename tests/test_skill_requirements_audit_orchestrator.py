@@ -49,7 +49,7 @@ def test_audit_loop_approved_by_user(full_run_log):
     assert 1 <= audit[0]["iterations"] <= 3
 
 
-def test_advisor_note_before_epics_close(full_run_log):
+def test_advisor_note_present(full_run_log):
     events = [json.loads(l) for l in
               (full_run_log / ".factory" / "log.jsonl").read_text().splitlines()]
     notes = [e for e in events

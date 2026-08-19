@@ -55,6 +55,9 @@ def test_hu_step_complete_logged(hu_output):
     done = [e for e in events
             if e.get("type") == "step_complete" and e.get("step") == "hu_por_epica"]
     assert len(done) >= 1
+    # "epic" is the field that distinguishes fan-out instances in the log -
+    # the one field this whole design depends on.
+    assert done[0]["epic"] == "EPIC-1"
 
 
 # --- Traceability contract ---
