@@ -115,3 +115,57 @@ def test_install_gitflow_hook_is_idempotent(tmp_path: Path):
     # Verify it's still the same entry
     bash_entries = [e for e in settings2["hooks"]["PreToolUse"] if e["matcher"] == "Bash"]
     assert len(bash_entries) == 1
+
+
+from factorysoftware.adapters import registry
+
+
+class _AlwaysYes:
+    name = "always_yes"
+    def detect(self, project_root): return True
+    def target_paths(self, project_root, skill_ids): return {}
+    def render(self, skill_id, content_md): return content_md
+
+
+class _AlwaysNo:
+    name = "always_no"
+    def detect(self, project_root): return False
+    def target_paths(self, project_root, skill_ids): return {}
+    def render(self, skill_id, content_md): return content_md
+
+
+def test_detect_returns_all_matching_adapters(tmp_path: Path):
+    found = registry.detect(tmp_path, adapters=[_AlwaysYes(), _AlwaysNo()])
+    assert [a.name for a in found] == ["always_yes"]
+
+
+def test_detect_returns_multiple_when_several_match(tmp_path: Path):
+    found = registry.detect(tmp_path, adapters=[_AlwaysYes(), _AlwaysYes()])
+    assert len(found) == 2
+
+
+def test_detect_empty_when_none_match(tmp_path: Path):
+    assert registry.detect(tmp_path, adapters=[_AlwaysNo()]) == []
+
+
+def test_select_by_name_overrides_detection(tmp_path: Path):
+    selected = registry.select(["always_no"], adapters=[_AlwaysYes(), _AlwaysNo()])
+    assert [a.name for a in selected] == ["always_no"]
+
+
+def test_all_adapters_includes_claude_code():
+    names = [a.name for a in registry.ALL_ADAPTERS]
+    assert "claude_code" in names
+
+
+class _Raises:
+    name = "raises"
+    def detect(self, project_root): raise OSError("permission denied")
+    def target_paths(self, project_root, skill_ids): return {}
+    def render(self, skill_id, content_md): return content_md
+
+
+def test_detect_skips_adapter_that_raises_and_keeps_others(tmp_path: Path, capsys):
+    found = registry.detect(tmp_path, adapters=[_Raises(), _AlwaysYes()])
+    assert [a.name for a in found] == ["always_yes"]
+    assert "raises" in capsys.readouterr().err
