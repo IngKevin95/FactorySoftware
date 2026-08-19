@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from factorysoftware.adapters.base import ProviderAdapter
@@ -45,3 +46,32 @@ def test_claude_code_render_adds_frontmatter():
     assert "name: requirements-prd" in rendered
     assert "description:" in rendered
     assert "Hacé el PRD." in rendered
+
+
+def test_install_gitflow_hook_writes_guard_script(tmp_path: Path):
+    written = ClaudeCodeAdapter().install_gitflow_hook(tmp_path)
+    guard = tmp_path / ".claude" / "hooks" / "gitflow-guard.sh"
+    assert guard in written
+    assert guard.exists()
+    assert "git commit" in guard.read_text(encoding="utf-8")
+    assert "main" in guard.read_text(encoding="utf-8")
+
+
+def test_install_gitflow_hook_registers_in_settings(tmp_path: Path):
+    ClaudeCodeAdapter().install_gitflow_hook(tmp_path)
+    settings_path = tmp_path / ".claude" / "settings.json"
+    assert settings_path.exists()
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    pretooluse = settings["hooks"]["PreToolUse"]
+    assert any(entry["matcher"] == "Bash" for entry in pretooluse)
+
+
+def test_install_gitflow_hook_merges_existing_settings(tmp_path: Path):
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "settings.json").write_text(
+        json.dumps({"otherSetting": True}), encoding="utf-8"
+    )
+    ClaudeCodeAdapter().install_gitflow_hook(tmp_path)
+    settings = json.loads((tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    assert settings["otherSetting"] is True
+    assert "hooks" in settings
