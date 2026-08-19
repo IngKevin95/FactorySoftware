@@ -423,55 +423,58 @@ ejecuta en serie, una instancia a la vez).
    realmente en cada corrida, útil para comparar eficiencia entre
    proveedores.
 
-## Modos de invocación: manual, por unidad y completo (transversal,
-obligatorio en toda fase con unidad principal de fan-out)
+## Modos de invocación: cada uno es un skill con nombre propio (transversal)
 
-Todo paso declarado debe poder invocarse de tres formas — nunca solo una o
-dos. Una fase que tenga una **unidad principal de fan-out** (ej. la Épica en
-Construcción y en QA) declara cuál es, para que los modos 2 y 3 tengan
-sentido; una fase sin unidad principal clara (Requerimientos, Arquitectura)
-solo ofrece los modos 1 y 3.
+Ningún modo es "un skill genérico con un parámetro oculto" — cada uno es un
+skill invocable con su propio nombre, para que el usuario (o el agente que
+decide qué invocar) lo reconozca sin ambigüedad:
 
-1. **Manual (paso suelto)**: el usuario le pide al agente ejecutar un paso
-   puntual (ej. "generá el PRD", "armá las HU de la épica 2"). El agente
-   ejecuta *solo* ese paso.
-2. **Automático por unidad**: el usuario le pide correr la fase entera pero
-   acotada a una sola instancia de la unidad principal (ej. "construí la
-   épica 3 completa", "corré QA solo de lo que tocó la épica 3"). El agente
-   encadena todos los pasos declarados en orden de `depende_de`, pero cada
-   paso con fan-out actúa solo sobre esa unidad — un paso sin fan-out que
-   necesita ver el conjunto completo (ej. `plan_audit`, que detecta
-   conflictos *entre* épicas) igual corre viendo todo, pero reporta y
-   bloquea solo lo relevante a la unidad pedida. Termina con el Auditor de
-   fase + el Auditor Integral + el gate, igual que el modo 3, pero acotado.
-3. **Automático completo (todas las unidades)**: el usuario le pide correr
-   la fase entera para todo. El agente encadena todos los pasos declarados
-   en orden de `depende_de` (respetando fan-out y la regla de despacho de
-   arriba) sobre **todas** las instancias de la unidad principal, y termina
-   con el Auditor de fase + el Auditor Integral + el gate — sin pararse a
-   esperar confirmación entre pasos intermedios.
+1. **`<phase>-<step_id>` (manual, paso suelto)**: ejecuta *solo* ese paso.
+   Existe siempre, en toda fase.
+2. **`<phase>-flujo` (automático completo)**: encadena todos los pasos
+   declarados en orden de `depende_de` (respetando fan-out y la regla de
+   despacho) sobre **todas** las instancias de la unidad principal (si la
+   fase tiene una), y termina con el Auditor de fase + el Auditor Integral +
+   el gate. Existe siempre, en toda fase — es el nombre por defecto del modo
+   completo.
+   - **Excepción de nombre**: en Construcción este skill se llama
+     `construction-e2e` en vez de `construction-flujo` — mismo mecanismo,
+     nombre específico porque ahí arma la aplicación de punta a punta,
+     slice por slice, no solo "sigue un flujo de pasos". Cada spec de fase
+     declara si usa el nombre por defecto o esta excepción.
+3. **`<phase>-<unidad>` (automático por unidad, solo fases con unidad
+   principal de fan-out)**: mismo encadenado que el modo 2, pero acotado a
+   una sola instancia de la unidad principal, pasada como argumento al
+   invocar el skill (ej. invocar `construction-slide` con `EPIC-3` —
+   "construí el slide de la épica 3"). Cada paso con fan-out actúa solo
+   sobre esa unidad; un paso sin fan-out que necesita ver el conjunto
+   completo (ej. `plan_audit`, que detecta conflictos *entre* épicas) igual
+   corre viendo todo, pero reporta y bloquea solo lo relevante a la unidad
+   pedida. El nombre de la unidad (`<unidad>`) lo define cada spec de fase
+   — Construcción usa `slide`, QA usa `slide` también (mismo mecanismo,
+   misma unidad Épica). Solo existe en fases que declaran unidad principal.
 
 ## Auditor standalone: por unidad y general (transversal)
 
 Además de correr como parte de los modos 2 y 3, el Auditor de fase y el
 Auditor Integral de cada fase deben poder invocarse **solos**, sin
 reconstruir nada — para re-chequear algo después de un cambio manual, o
-para pedir un chequeo de salud sin haber tocado nada nuevo:
+para pedir un chequeo de salud sin haber tocado nada nuevo. Se exponen como
+un cuarto skill, `<phase>-auditor` (solo en fases con unidad principal), que
+toma el alcance como argumento al invocarlo:
 
-- **Auditor por unidad** (ej. "auditá la épica 3"): corre únicamente los
-  pasos de auditoría (Auditor de fase + Auditor Integral) sobre lo que ya
-  existe para esa unidad, sin pasar por los pasos de construcción previos.
-- **Auditor general** (ej. "hacé una auditoría general de todo lo
-  construido"): corre el Auditor de fase + el Auditor Integral en modo
-  holístico, sobre **todas** las unidades que ya existen a la fecha, sin
-  reconstruir ninguna — un chequeo de salud completo del estado actual.
+- **`<phase>-auditor` con una unidad como argumento** (ej. "auditá la épica
+  3"): corre únicamente los pasos de auditoría (Auditor de fase + Auditor
+  Integral) sobre lo que ya existe para esa unidad, sin pasar por los pasos
+  de construcción previos.
+- **`<phase>-auditor` sin argumento, o con "todo"** (ej. "hacé una
+  auditoría general"): corre el Auditor de fase + el Auditor Integral en
+  modo holístico, sobre **todas** las unidades que ya existen a la fecha,
+  sin reconstruir ninguna — un chequeo de salud completo del estado actual.
 
-Ambos se exponen como un skill propio `<phase>-auditor` (modo manual
-especial, distinto de los skills por paso), que acepta el alcance (una
-unidad o "todo") como parámetro de invocación. Sigue el mismo mecanismo de
-severidad, evidencia hasheada y logueo (`audit_iteration`, `phase_gate`) que
-el resto del sistema — la única diferencia es que no está atado a haber
-corrido construcción justo antes.
+Sigue el mismo mecanismo de severidad, evidencia hasheada y logueo
+(`audit_iteration`, `phase_gate`) que el resto del sistema — la única
+diferencia es que no está atado a haber corrido construcción justo antes.
 
 ### Contrato de invocación manual: no se salta prerequisitos en silencio
 
@@ -499,26 +502,32 @@ cualquier paso en cualquier orden.
 
 ### Exposición por proveedor
 
-- **Proveedores multi-archivo (Claude Code)**: cada fase se renderiza como
-  un skill orquestador (`<phase>/SKILL.md`, modos 2 y 3 — acepta el alcance
-  como parámetro de invocación), un skill por paso declarado
-  (`<phase>-<step_id>/SKILL.md`, modo 1, con el contrato de verificación de
-  prerequisitos incluido en sus instrucciones), y — solo en fases con
-  unidad principal — un skill `<phase>-auditor/SKILL.md` (Auditor
-  standalone, por unidad o general). `render.py` deriva los tres a partir
-  del mismo contenido fuente: el `.md` de cada fase se estructura con un
-  heading `## Paso: <step_id>` por paso declarado — el skill manual de un
-  paso es el preámbulo de la fase + esa sección; el skill orquestador es el
+Cada fase renderiza hasta 4 tipos de skill (2 si no declara unidad
+principal):
+
+1. `<phase>-<step_id>/SKILL.md` — uno por paso declarado (modo manual).
+2. `<phase>-flujo/SKILL.md` (o `construction-e2e/SKILL.md` en esa
+   excepción) — modo completo.
+3. `<phase>-<unidad>/SKILL.md` (ej. `construction-slide/SKILL.md`,
+   `qa-slide/SKILL.md`) — modo por unidad, solo si la fase declara unidad
+   principal.
+4. `<phase>-auditor/SKILL.md` — Auditor standalone, solo si la fase declara
+   unidad principal.
+
+- **Proveedores multi-archivo (Claude Code)**: los 4 (o 2) se renderizan
+  como archivos separados. `render.py` los deriva del mismo contenido
+  fuente: el `.md` de cada fase se estructura con un heading
+  `## Paso: <step_id>` por paso declarado — el skill manual de un paso es
+  el preámbulo de la fase + esa sección; el skill de flujo/slide es el
   preámbulo + todas las secciones concatenadas en orden + la instrucción de
-  encadenarlas con el alcance pedido; el skill auditor es el preámbulo +
-  solo las secciones marcadas `rol: Auditor`/`rol: Auditor Integral`.
+  encadenarlas (acotado a la unidad recibida como argumento, si aplica); el
+  skill auditor es el preámbulo + solo las secciones marcadas
+  `rol: Auditor`/`rol: Auditor Integral`.
 - **Proveedores de archivo único (Copilot, Codex, OpenCode, Antigravity)**:
   no hay separación física de archivos — el único archivo de instrucciones
-  incluye los tres modos como contenido: cómo ejecutar la fase completa (con
-  o sin alcance acotado), por separado para cada paso sus instrucciones más
-  el contrato de verificación de prerequisitos, y una sección aparte con
-  solo la lógica de auditoría standalone. El agente decide qué parte
-  aplicar según lo que el usuario pidió.
+  incluye los 4 (o 2) modos como secciones nombradas con el mismo criterio
+  de nombres de arriba, para que el agente pueda reconocer cuál aplica
+  según lo que el usuario pidió, aunque no sean archivos separados.
 
 ### Extensión del CLI del núcleo
 
