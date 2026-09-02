@@ -202,7 +202,7 @@ def cmd_audit_triage(args: argparse.Namespace) -> int:
     project_root = Path(args.project_root)
     epic = args.epic
     base = args.base
-    plan_path = project_root / "docs" / "construction" / "plan" / f"{epic}.md"
+    plan_path = project_root / "docs" / "construction" / "plan" / f"{epic}-plan.md"
     plan_text = plan_path.read_text(encoding="utf-8") if plan_path.exists() else ""
     try:
         diff_text = subprocess.run(

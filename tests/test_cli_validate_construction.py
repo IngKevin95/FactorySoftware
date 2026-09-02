@@ -29,3 +29,30 @@ def test_cli_validate_construction_fails_on_role_without_content_pack(tmp_path: 
 
 def test_audit_triage(tmp_path: Path):
     assert main(["audit-triage", "--epic", "EPIC-1", "--project-root", str(tmp_path)]) == 0
+
+
+def test_audit_triage_reads_epic_n_plan_md_and_triggers_fidelity_for_frontend_role(
+    tmp_path: Path, capsys
+):
+    cons = tmp_path / "docs" / "construction" / "plan"
+    _write(cons / "EPIC-1-plan.md", _fm(
+        {"id": "EPIC-1", "estado": "draft", "depende_de_epicas": []},
+        "### TASK-1.1\n- rol: frontend\n- implementa: API-1\n- depende_de: []",
+    ))
+    assert main(["audit-triage", "--epic", "EPIC-1", "--project-root", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "fidelity" in out
+    assert "usability" in out
+
+
+def test_audit_triage_reads_epic_n_plan_md_and_triggers_security_for_seguridad_role(
+    tmp_path: Path, capsys
+):
+    cons = tmp_path / "docs" / "construction" / "plan"
+    _write(cons / "EPIC-1-plan.md", _fm(
+        {"id": "EPIC-1", "estado": "draft", "depende_de_epicas": []},
+        "### TASK-1.1\n- rol: seguridad\n- implementa: API-1\n- depende_de: []",
+    ))
+    assert main(["audit-triage", "--epic", "EPIC-1", "--project-root", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "security" in out

@@ -35,6 +35,7 @@ Decide qué dimensiones de auditoría se disparan para la épica.
 - Siempre: `functionality` y `practices`.
 - `security`: si se tocan archivos de auth, input externo, o hubo tareas con rol `seguridad`.
 - `efficiency`: si hay loops anidados, queries nuevas o alta complejidad.
+- `fidelity`/`usability`: si el plan tiene tareas con rol `frontend` o `mobile`, o el diff toca archivos de UI (`.tsx`, `.jsx`, `.vue`, `.svelte`, `/components/`, `/screens/`, `/views/`).
 - **Salida:** Loguea decisión vía `factory log audit_triage`.
 
 ## Paso: branch_setup

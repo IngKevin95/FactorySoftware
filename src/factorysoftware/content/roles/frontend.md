@@ -38,7 +38,7 @@ Tu tarea no cierra con "compila y se ve parecido". `construction_audit` corre, c
 - Commits por unidad de trabajo (comportamiento/fix, no por tipo de archivo), Conventional Commits.
 - Rama: `feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert/<slug>`. Nunca commit directo a `main`/`develop`.
 - Presupuesto de 400 líneas por PR; si lo excedés, cortás en PRs encadenados.
-- Cada escenario de aceptación de HU que tocaste queda como ítem en `factory slice wiring add --epic EPIC-N <id> <ref> --by frontend`, y pasa a `passing` solo tras una prueba real (E2E o de componente, no inspección visual): `factory slice wiring status --epic EPIC-N <id> passing --evidence "..." --by frontend`.
+- Cada escenario de aceptación de HU que tocaste queda como ítem en `factory slice wiring add --epic EPIC-N <id> <ref> --by frontend`, y pasa a `passing` solo tras una prueba real (E2E o de componente, no inspección visual): `factory slice wiring status --epic EPIC-N <id> passing --evidence "<comando>; exit=0; head=<hash de git rev-parse HEAD>" --by frontend`.
 - Antes de dar una tarea por terminada: validación visual/E2E contra el prototipo o `SCREEN-N.md` real, no solo que compile.
 
 ## Cierre
