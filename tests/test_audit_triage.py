@@ -36,3 +36,24 @@ def test_decide_dimensions_all():
     plan_text = "plan"
     result = decide_dimensions(diff_text, plan_text)
     assert set(result) == {"functionality", "practices", "security", "efficiency"}
+
+def test_decide_dimensions_fidelity_frontend_role():
+    diff_text = "some standard code"
+    plan_text = "rol: frontend"
+    result = decide_dimensions(diff_text, plan_text)
+    assert "fidelity" in result
+    assert "usability" in result
+
+def test_decide_dimensions_fidelity_ui_file_paths():
+    diff_text = "src/components/UserCard.tsx"
+    plan_text = "plan"
+    result = decide_dimensions(diff_text, plan_text)
+    assert "fidelity" in result
+    assert "usability" in result
+
+def test_decide_dimensions_no_fidelity_without_ui_signal():
+    diff_text = "src/services/billing.py"
+    plan_text = "rol: backend"
+    result = decide_dimensions(diff_text, plan_text)
+    assert "fidelity" not in result
+    assert "usability" not in result
