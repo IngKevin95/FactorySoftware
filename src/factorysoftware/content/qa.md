@@ -1,17 +1,50 @@
 ---
 id: qa
 unidad_principal: EPIC-N
+flujo_skill_name: flujo
 steps:
-  - id: qa_audit
-  - id: qa_integral_audit
   - id: coverage_gap_analysis
-  - id: e2e_tests
+    depende_de: []
+    fan_out: null
+    paralelizable: false
   - id: qa_branch_setup
+    depende_de: ['coverage_gap_analysis']
+    fan_out: null
+    paralelizable: false
   - id: integration_tests
+    depende_de: ['qa_branch_setup']
+    fan_out: "una instancia por TEST-N de tipo integration"
+    paralelizable: true
+  - id: e2e_tests
+    depende_de: ['qa_branch_setup']
+    fan_out: "una instancia por TEST-N de tipo e2e"
+    paralelizable: true
   - id: nfr_tests
+    depende_de: ['qa_branch_setup']
+    fan_out: "una instancia por TEST-N de tipo nfr"
+    paralelizable: true
   - id: security_tests
+    depende_de: ['qa_branch_setup']
+    fan_out: null
+    paralelizable: false
   - id: traceability_update
+    depende_de: ['integration_tests', 'e2e_tests', 'nfr_tests', 'security_tests']
+    fan_out: null
+    paralelizable: false
+  - id: qa_audit
+    depende_de: ['traceability_update']
+    fan_out: null
+    paralelizable: true
+    rol: Auditor
+  - id: qa_integral_audit
+    depende_de: ['qa_audit']
+    fan_out: null
+    paralelizable: false
+    rol: Auditor Integral
   - id: pr_gate
+    depende_de: ['qa_integral_audit']
+    fan_out: null
+    paralelizable: false
 ---
 
 Content pack de la fábrica para la fase de qa.

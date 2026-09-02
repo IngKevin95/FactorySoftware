@@ -117,3 +117,25 @@ def test_parse_content_with_unit_and_role(tmp_path: Path):
     assert content.steps[0].fan_out == "una por Épica"
     assert content.steps[0].paralelizable is True
     assert content.steps[1].rol == "Auditor"
+
+
+def test_qa_content_pack_has_full_dependency_graph():
+    from pathlib import Path
+    content_path = (
+        Path(__file__).parent.parent
+        / "src" / "factorysoftware" / "content" / "qa.md"
+    )
+    content = parse_content(content_path)
+    by_id = {s.id: s for s in content.steps}
+    assert by_id["coverage_gap_analysis"].depende_de == []
+    assert by_id["qa_branch_setup"].depende_de == ["coverage_gap_analysis"]
+    for step_id in ("integration_tests", "e2e_tests", "nfr_tests", "security_tests"):
+        assert by_id[step_id].depende_de == ["qa_branch_setup"]
+    assert set(by_id["traceability_update"].depende_de) == {
+        "integration_tests", "e2e_tests", "nfr_tests", "security_tests"
+    }
+    assert by_id["qa_audit"].depende_de == ["traceability_update"]
+    assert by_id["qa_audit"].rol == "Auditor"
+    assert by_id["qa_integral_audit"].depende_de == ["qa_audit"]
+    assert by_id["qa_integral_audit"].rol == "Auditor Integral"
+    assert by_id["pr_gate"].depende_de == ["qa_integral_audit"]
