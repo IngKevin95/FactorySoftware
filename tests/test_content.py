@@ -175,3 +175,21 @@ def test_qa_four_test_dimensions_have_distinct_real_content():
     assert "audit_evidence" in nfr.lower()
     assert "medida de respuesta" in nfr.lower()
     assert "advisor_block" in security.lower()
+
+
+def test_qa_audit_steps_have_distinct_real_content():
+    from pathlib import Path
+    content_path = (
+        Path(__file__).parent.parent
+        / "src" / "factorysoftware" / "content" / "qa.md"
+    )
+    content = parse_content(content_path)
+    qa_audit = content.sections["qa_audit"]
+    qa_integral = content.sections["qa_integral_audit"]
+    pr_gate = content.sections["pr_gate"]
+
+    assert len({qa_audit, qa_integral, pr_gate}) == 3
+    assert "audit_coverage" in qa_audit.lower()
+    assert "audit_nfr_compliance" in qa_audit.lower()
+    assert "flujo-n" in qa_integral.lower()
+    assert "develop" in pr_gate.lower()

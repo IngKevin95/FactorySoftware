@@ -51,27 +51,20 @@ Content pack de la fábrica para la fase de qa.
 
 ## Paso: qa_audit
 
-# qa-slide
+Auditoría con tope de 3 iteraciones compartidas, 4 sub-checks — 2 mecánicos, 2 semánticos, las 4 corren en paralelo cuando el proveedor lo soporta:
 
-Orquestador de QA limitado al alcance de una Épica.
-
-- **Parámetros:** `epic_id` (obligatorio, ej. `EPIC-3`).
-- **Comportamiento:** "Corrée QA solo de lo que tocó la Épica".
-- `coverage_gap_analysis` filtra a HU/NFR pertenecientes exclusivamente a esa Épica, así como los `FLUJO-N` que estén **completamente** contenidos en ella (flujos que cruzan épicas se excluyen en este modo).
-- Crea una rama dedicada: `feature/qa-coverage-epic-<numero>-<slug>`.
-- Finaliza abriendo un PR específico e independiente para este slide.
+1. **`audit_coverage`** (mecánico — correr `factory validate qa --project-root .`): toda HU no retirada en `traceability.md` tiene "Casos de prueba" no vacío con ids que existen de verdad; todo criterio Given/When/Then de cada HU está cubierto por al menos un test.
+2. **`audit_nfr_compliance`** (mecánico — mismo comando): todo `NFR-N` de `constraints.md` tiene un evento `audit_evidence` logueado con `git_head` vigente, y su valor medido cumple la "Medida de respuesta" declarada.
+3. **`audit_test_quality`** (semántico): los tests no son triviales (sin asserts vacíos, sin solo verificar "no explota"), ejercitan comportamiento real de negocio (no detalles de implementación frágiles ante un refactor válido), sin `sleep` fijo ni dependencia de orden de ejecución entre tests.
+4. **`audit_security_findings`** (semántico): todo hallazgo de `security_tests` tiene severidad asignada; todo hallazgo Bloqueante pasó por `advisor_block` — ninguno queda reportado sin la confirmación explícita del usuario.
 
 ## Paso: qa_integral_audit
 
-# qa-slide
+Último paso agéntico antes del gate. Coherencia entre lo que QA probó y lo que Requerimientos/Arquitectura/Construcción declararon:
 
-Orquestador de QA limitado al alcance de una Épica.
-
-- **Parámetros:** `epic_id` (obligatorio, ej. `EPIC-3`).
-- **Comportamiento:** "Corrée QA solo de lo que tocó la Épica".
-- `coverage_gap_analysis` filtra a HU/NFR pertenecientes exclusivamente a esa Épica, así como los `FLUJO-N` que estén **completamente** contenidos en ella (flujos que cruzan épicas se excluyen en este modo).
-- Crea una rama dedicada: `feature/qa-coverage-epic-<numero>-<slug>`.
-- Finaliza abriendo un PR específico e independiente para este slide.
+i. Todo `FLUJO-N.md` de Requerimientos tiene al menos un test e2e real corriendo y pasando — no alcanza con que el archivo del test exista.
+ii. Ningún NFR ni flujo quedó "cubierto" solo en `docs/qa/plan.md` sin que `traceability_update` lo haya reflejado en `traceability.md` — ambos documentos deben ser consistentes entre sí.
+iii. El sistema integrado en `develop` (con QA ya sumado) sigue siendo coherente con las ADR de Arquitectura — si una solución de test reveló que una decisión arquitectónica no se sostiene en la práctica, queda documentado como hallazgo a escalar, nunca en silencio.
 
 ## Paso: coverage_gap_analysis
 
@@ -118,13 +111,5 @@ Asegura que la tabla finalice completa de forma mecánica y precisa.
 
 ## Paso: pr_gate
 
-# qa-slide
-
-Orquestador de QA limitado al alcance de una Épica.
-
-- **Parámetros:** `epic_id` (obligatorio, ej. `EPIC-3`).
-- **Comportamiento:** "Corrée QA solo de lo que tocó la Épica".
-- `coverage_gap_analysis` filtra a HU/NFR pertenecientes exclusivamente a esa Épica, así como los `FLUJO-N` que estén **completamente** contenidos en ella (flujos que cruzan épicas se excluyen en este modo).
-- Crea una rama dedicada: `feature/qa-coverage-epic-<numero>-<slug>`.
-- Finaliza abriendo un PR específico e independiente para este slide.
+Abre Pull Request de `feature/qa-coverage-<slug>` (o `feature/qa-coverage-epic-<numero>-<slug>` en modo `qa-slide`) hacia `develop`, merge commit (`--no-ff`). Espera la aprobación manual del usuario — este PR es el gate de aprobación humana de la fase, no un paso aparte.
 
