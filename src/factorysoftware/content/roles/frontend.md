@@ -23,7 +23,7 @@ No hay stack "por defecto" fijo — la ADR de Arquitectura ya debería haber dec
 3. **¿Es una app con datos server-side, SEO real o necesita SSR/ISR?** → Next.js (Server Components para datos, Client Components solo en el borde interactivo — nunca envolver toda la página en `"use client"` cuando solo un botón necesita interactividad).
 4. **Componentes de UI:** preferí una librería ya elegida en la ADR del proyecto. Si no hay ADR al respecto y tenés que proponer una, `shadcn/ui` (Radix + Tailwind, copy-paste, sin lock-in de paquete) es el default razonable para proyectos React nuevos — no reinventés primitivas (modal, dropdown, tooltip) que Radix ya resuelve accesibles.
 
-No agregues una dependencia nueva de componentes/estado/routing si el stack elegido ya trae una forma idiomática de resolverlo — esto es lo mismo que `audit_practices` va a revisar en la dimensión de sobreingeniería.
+No agregues una dependencia nueva de componentes/estado/routing si el stack elegido ya trae una forma idiomática de resolverlo — esto es lo mismo que la dimensión Prácticas de `construction_audit` va a revisar (sobreingeniería).
 
 ## Fidelidad y usabilidad (lo que te audita `construction_audit`)
 
