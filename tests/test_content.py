@@ -211,3 +211,15 @@ def test_construction_content_pack_still_parses_after_frontend_edits():
     assert "wiring_check" in content.sections
     assert "material_hash" in content.sections["wiring_check"].lower() or \
            "git rev-parse head" in content.sections["wiring_check"].lower()
+
+
+def test_frontend_role_pack_still_parses_and_has_stack_ladder():
+    from pathlib import Path
+    content_path = (
+        Path(__file__).parent.parent
+        / "src" / "factorysoftware" / "content" / "roles" / "frontend.md"
+    )
+    content = parse_content(content_path)
+    assert content.is_standalone is True  # confirma que sigue sin steps: en frontmatter
+    assert "krug" in content.preamble.lower()
+    assert "astro" in content.preamble.lower() or "next.js" in content.preamble.lower()
