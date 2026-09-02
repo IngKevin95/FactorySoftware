@@ -4,8 +4,11 @@ from pathlib import Path
 
 from factorysoftware.adapters.base import (
     GUARD_SCRIPT,
+    is_role_skill,
     read_json_config,
     remove_hook_entry,
+    role_description,
+    role_name,
     write_guard_script,
     write_json_config,
     write_or_remove_json_config,
@@ -19,12 +22,25 @@ class ClaudeCodeAdapter:
         return (project_root / ".claude").is_dir()
 
     def target_paths(self, project_root: Path, skill_ids: list[str]) -> dict[str, Path]:
-        return {
-            sid: project_root / ".claude" / "skills" / sid / "SKILL.md"
-            for sid in skill_ids
-        }
+        paths = {}
+        for sid in skill_ids:
+            if is_role_skill(sid):
+                paths[sid] = project_root / ".claude" / "agents" / f"{role_name(sid)}.md"
+            else:
+                paths[sid] = project_root / ".claude" / "skills" / sid / "SKILL.md"
+        return paths
 
     def render(self, skill_id: str, content_md: str) -> str:
+        if is_role_skill(skill_id):
+            # Subagente nativo de Claude Code: name/description/tools en vez del
+            # frontmatter de skill. `tools` queda acotado a lo que un rol de
+            # construcción necesita (nunca acceso irrestricto).
+            return (
+                f"---\nname: {role_name(skill_id)}\n"
+                f"description: {role_description(content_md)}\n"
+                "tools: Read, Grep, Glob, Bash, Edit, Write\n---\n\n"
+                f"{content_md}"
+            )
         description = f"Factory skill: {skill_id}"
         return f"---\nname: {skill_id}\ndescription: {description}\n---\n\n{content_md}"
 

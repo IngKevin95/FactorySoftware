@@ -9,10 +9,11 @@ CONTENT_PATH = (
     / "src" / "factorysoftware" / "content" / "requirements.md"
 )
 
-ALL_STEP_IDS = ["prd", "epics", "hu_por_epica", "traceability", "flujos", "audit_loop"]
+ALL_STEP_IDS = ["prd", "project_memory_setup", "epics", "hu_por_epica", "traceability", "flujos", "audit_loop"]
 
 ALL_SKILL_IDS = {
     "requirements-prd",
+    "requirements-project_memory_setup",
     "requirements-epics",
     "requirements-hu_por_epica",
     "requirements-traceability",

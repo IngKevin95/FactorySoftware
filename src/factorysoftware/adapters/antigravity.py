@@ -4,8 +4,10 @@ from pathlib import Path
 
 from factorysoftware.adapters.base import (
     GUARD_SCRIPT,
+    is_role_skill,
     read_json_config,
     remove_hook_entry,
+    role_description,
     write_guard_script,
     write_json_config,
     write_or_remove_json_config,
@@ -40,6 +42,16 @@ class AntigravityAdapter:
         }
 
     def render(self, skill_id: str, content_md: str) -> str:
+        if is_role_skill(skill_id):
+            # Sin schema de subagente nativo verificado para Antigravity (ver
+            # comentario de cabecera): se instala como skill normal, con nota
+            # de que las reglas del rol se aplican manualmente por tarea.
+            return (
+                f"---\nname: {skill_id}\ndescription: {role_description(content_md)}\n---\n\n"
+                "(Definición de rol — ver `content/roles/*.md`. Sin subagente nativo separado en este "
+                "host: aplicá estas reglas manualmente a cada tarea con este rol.)\n\n"
+                f"{content_md}"
+            )
         description = f"Factory skill: {skill_id}"
         return f"---\nname: {skill_id}\ndescription: {description}\n---\n\n{content_md}"
 

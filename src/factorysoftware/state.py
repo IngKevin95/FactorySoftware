@@ -7,6 +7,14 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+# Adaptado de build-state.json / build-state.schema.json de
+# DemoWhatsappAgent/.claude/state (mismo usuario) — ver docs/CREDITS.md.
+# Versión deliberadamente reducida: un archivo JSON por épica (no un único
+# archivo con active_slice/history/releases), sin JSON Schema aparte (el
+# modelo Pydantic ya es la validación), y sin los gates pesados de release
+# (security/smell/ux/stack_arch) que ahí viven agregados en releases[] — acá
+# no existe todavía ese concepto de release agregada.
+
 
 def compute_hash(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
@@ -45,6 +53,93 @@ def write_manifest(project_root: Path, manifest: Manifest) -> None:
     _manifest_path(project_root).write_text(
         manifest.model_dump_json(indent=2), encoding="utf-8"
     )
+
+
+class WiringItem(BaseModel):
+    id: str
+    ref: str
+    kind: str = "hu_ac"
+    status: str = "failing"  # "failing" | "passing"
+    evidence: str = ""
+
+
+class ProgressEntry(BaseModel):
+    at: str
+    by: str
+    note: str
+
+
+class SliceState(BaseModel):
+    epic_id: str
+    phase: str = "task_planning"
+    gates: dict[str, bool] = {}
+    wiring_checklist: list[WiringItem] = []
+    progress_log: list[ProgressEntry] = []
+    updated_at: str = ""
+    updated_by: str = ""
+
+
+def _slice_state_path(project_root: Path, epic_id: str) -> Path:
+    return _factory_dir(project_root) / "slices" / f"{epic_id}.json"
+
+
+def read_slice_state(project_root: Path, epic_id: str) -> SliceState | None:
+    path = _slice_state_path(project_root, epic_id)
+    if not path.exists():
+        return None
+    return SliceState.model_validate_json(path.read_text(encoding="utf-8"))
+
+
+def write_slice_state(project_root: Path, state: SliceState, by: str) -> SliceState:
+    state.updated_at = datetime.now(timezone.utc).isoformat()
+    state.updated_by = by
+    path = _slice_state_path(project_root, state.epic_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(state.model_dump_json(indent=2), encoding="utf-8")
+    return state
+
+
+def _get_or_create_slice(project_root: Path, epic_id: str) -> SliceState:
+    return read_slice_state(project_root, epic_id) or SliceState(epic_id=epic_id)
+
+
+def set_slice_gate(project_root: Path, epic_id: str, gate: str, value: bool, by: str) -> SliceState:
+    state = _get_or_create_slice(project_root, epic_id)
+    state.gates[gate] = value
+    return write_slice_state(project_root, state, by)
+
+
+def append_slice_progress(project_root: Path, epic_id: str, by: str, note: str) -> SliceState:
+    state = _get_or_create_slice(project_root, epic_id)
+    state.progress_log.append(
+        ProgressEntry(at=datetime.now(timezone.utc).isoformat(), by=by, note=note)
+    )
+    return write_slice_state(project_root, state, by)
+
+
+def upsert_wiring_item(
+    project_root: Path, epic_id: str, item_id: str, ref: str, kind: str, by: str
+) -> SliceState:
+    state = _get_or_create_slice(project_root, epic_id)
+    existing = next((i for i in state.wiring_checklist if i.id == item_id), None)
+    if existing:
+        existing.ref = ref
+        existing.kind = kind
+    else:
+        state.wiring_checklist.append(WiringItem(id=item_id, ref=ref, kind=kind))
+    return write_slice_state(project_root, state, by)
+
+
+def set_wiring_status(
+    project_root: Path, epic_id: str, item_id: str, status: str, evidence: str, by: str
+) -> SliceState:
+    state = _get_or_create_slice(project_root, epic_id)
+    item = next((i for i in state.wiring_checklist if i.id == item_id), None)
+    if item is None:
+        raise ValueError(f"wiring item '{item_id}' no existe en la épica {epic_id}, usa 'wiring add' primero")
+    item.status = status
+    item.evidence = evidence
+    return write_slice_state(project_root, state, by)
 
 
 def _log_path(project_root: Path) -> Path:
