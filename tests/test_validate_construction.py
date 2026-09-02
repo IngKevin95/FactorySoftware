@@ -46,3 +46,35 @@ def test_invalid_role(docs):
     }, "### TASK-1.1\n- rol: alien\n- implementa: API-1\n- depende_de: []"))
     errors = validate_construction(docs)
     assert any("alien" in e for e in errors)
+
+def test_role_without_content_pack_is_reported(tmp_path):
+    roles_dir = tmp_path / "roles"
+    roles_dir.mkdir()
+    (roles_dir / "backend.md").write_text("rol backend", encoding="utf-8")
+    # "frontend" se usa en el plan pero no tiene content pack en roles_dir
+    _write(tmp_path / "docs" / "construction" / "plan" / "EPIC-1-plan.md", _fm({
+        "id": "EPIC-1", "estado": "draft", "depende_de_epicas": []
+    }, "### TASK-1.1\n- rol: frontend\n- implementa: API-1\n- depende_de: []"))
+    _write(tmp_path / "docs" / "architecture" / "apis" / "API-1.md", _fm({"id": "API-1"}))
+    errors = validate_construction(tmp_path, content_roles_dir=roles_dir)
+    assert any("frontend" in e and "content pack" in e.lower() for e in errors)
+
+def test_role_with_content_pack_is_clean(tmp_path):
+    roles_dir = tmp_path / "roles"
+    roles_dir.mkdir()
+    (roles_dir / "backend.md").write_text("rol backend", encoding="utf-8")
+    _write(tmp_path / "docs" / "construction" / "plan" / "EPIC-1-plan.md", _fm({
+        "id": "EPIC-1", "estado": "draft", "depende_de_epicas": []
+    }, "### TASK-1.1\n- rol: backend\n- implementa: API-1\n- depende_de: []"))
+    _write(tmp_path / "docs" / "architecture" / "apis" / "API-1.md", _fm({"id": "API-1"}))
+    errors = validate_construction(tmp_path, content_roles_dir=roles_dir)
+    assert errors == []
+
+def test_role_check_skipped_when_no_roles_dir_given(tmp_path):
+    # comportamiento actual sin cambios: sin content_roles_dir, no valida existencia de pack
+    _write(tmp_path / "docs" / "construction" / "plan" / "EPIC-1-plan.md", _fm({
+        "id": "EPIC-1", "estado": "draft", "depende_de_epicas": []
+    }, "### TASK-1.1\n- rol: backend\n- implementa: API-1\n- depende_de: []"))
+    _write(tmp_path / "docs" / "architecture" / "apis" / "API-1.md", _fm({"id": "API-1"}))
+    errors = validate_construction(tmp_path)
+    assert errors == []

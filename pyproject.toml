@@ -18,7 +18,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-factorysoftware = ["content/*.md"]
+factorysoftware = ["content/*.md", "content/roles/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

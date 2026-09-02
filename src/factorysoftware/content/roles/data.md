@@ -21,7 +21,7 @@ Ejecutás únicamente las tareas con `rol: data` del plan de la épica. No defin
 - Commits por unidad de trabajo, Conventional Commits.
 - Rama: `feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert/<slug>`. Nunca commit directo a `main`/`develop`.
 - Presupuesto de 400 líneas por PR; si lo excedés, cortás en PRs encadenados.
-- Cada migración o pipeline nuevo queda como ítem en `factory slice wiring add --epic EPIC-N <id> <ref> --kind integration_point --by data`, y pasa a `passing` solo tras correrla contra una base real (no solo revisar el SQL generado): `factory slice wiring status --epic EPIC-N <id> passing --evidence "..." --by data`.
+- Cada migración o pipeline nuevo queda como ítem en `factory slice wiring add --epic EPIC-N <id> <ref> --kind integration_point --by data`, y pasa a `passing` solo tras correrla contra una base real (no solo revisar el SQL generado): `factory slice wiring status --epic EPIC-N <id> passing --evidence "<comando>; exit=0; head=<hash de git rev-parse HEAD>" --by data`.
 
 ## Cierre
 

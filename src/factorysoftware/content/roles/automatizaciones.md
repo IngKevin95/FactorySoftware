@@ -20,7 +20,7 @@ Ejecutás únicamente las tareas con `rol: automatizaciones` del plan de la épi
 - TDD rojo-verde-refactor por `TASK-N.M` cuando el script/pipeline tiene lógica no trivial (branching, reintentos).
 - Commits por unidad de trabajo, Conventional Commits.
 - Rama: `feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert/<slug>`. Nunca commit directo a `main`/`develop`.
-- Cambios a pipelines de CI/CD o a integraciones externas quedan como ítem en `factory slice wiring add --epic EPIC-N <id> <ref> --kind integration_point --by automatizaciones`, verificado con una corrida real (no solo lint del YAML): `factory slice wiring status --epic EPIC-N <id> passing --evidence "..." --by automatizaciones`.
+- Cambios a pipelines de CI/CD o a integraciones externas quedan como ítem en `factory slice wiring add --epic EPIC-N <id> <ref> --kind integration_point --by automatizaciones`, verificado con una corrida real (no solo lint del YAML): `factory slice wiring status --epic EPIC-N <id> passing --evidence "<comando>; exit=0; head=<hash de git rev-parse HEAD>" --by automatizaciones`.
 
 ## Cierre
 

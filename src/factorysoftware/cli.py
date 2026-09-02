@@ -150,7 +150,8 @@ def cmd_validate_architecture(args) -> int:
 
 
 def cmd_validate_construction(args: argparse.Namespace) -> int:
-    errors = validate_construction(Path(args.project_root))
+    content_roles_dir = Path(__file__).parent / "content" / "roles"
+    errors = validate_construction(Path(args.project_root), content_roles_dir=content_roles_dir)
     for e in errors:
         print(e, file=sys.stderr)
     return 1 if errors else 0
@@ -201,7 +202,7 @@ def cmd_audit_triage(args: argparse.Namespace) -> int:
     project_root = Path(args.project_root)
     epic = args.epic
     base = args.base
-    plan_path = project_root / "docs" / "construction" / "plan" / f"{epic}.md"
+    plan_path = project_root / "docs" / "construction" / "plan" / f"{epic}-plan.md"
     plan_text = plan_path.read_text(encoding="utf-8") if plan_path.exists() else ""
     try:
         diff_text = subprocess.run(

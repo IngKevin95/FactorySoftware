@@ -3,7 +3,9 @@ import re
 
 VALID_ROLES = {"backend", "data", "frontend", "seguridad", "automatizaciones", "mobile"}
 
-def validate_construction(project_root: Path) -> list[str]:
+def validate_construction(
+    project_root: Path, content_roles_dir: Path | None = None
+) -> list[str]:
     errors = []
     
     # Collect valid implementations
@@ -48,7 +50,14 @@ def validate_construction(project_root: Path) -> list[str]:
     for task_id, t in tasks.items():
         if t["rol"] and t["rol"] not in VALID_ROLES:
             errors.append(f"Task {task_id} has invalid role: {t['rol']}")
-        
+        elif t["rol"] and content_roles_dir is not None:
+            pack = content_roles_dir / f"{t['rol']}.md"
+            if not pack.exists():
+                errors.append(
+                    f"Task {task_id} uses role '{t['rol']}' with no content pack "
+                    f"at {pack} — no hay agente real para despachar esta tarea"
+                )
+
         if t["implementa"] and t["implementa"] not in valid_impls:
             errors.append(f"Task {task_id} references missing implementation: {t['implementa']}")
             

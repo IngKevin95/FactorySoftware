@@ -35,6 +35,7 @@ Decide qué dimensiones de auditoría se disparan para la épica.
 - Siempre: `functionality` y `practices`.
 - `security`: si se tocan archivos de auth, input externo, o hubo tareas con rol `seguridad`.
 - `efficiency`: si hay loops anidados, queries nuevas o alta complejidad.
+- `fidelity`/`usability`: si el plan tiene tareas con rol `frontend` o `mobile`, o el diff toca archivos de UI (`.tsx`, `.jsx`, `.vue`, `.svelte`, `/components/`, `/screens/`, `/views/`).
 - **Salida:** Loguea decisión vía `factory log audit_triage`.
 
 ## Paso: branch_setup
@@ -47,11 +48,13 @@ Prepara la rama de la épica.
 
 ## Paso: construction_audit
 
-Auditoría multidimensional con tope de 3 iteraciones compartidas:
+Auditoría multidimensional con tope de 3 iteraciones compartidas entre todas las dimensiones activas para la épica (decididas por `audit_triage`):
 1. **Funcionalidad:** Tests unitarios pasan. Tareas del plan tienen código real. `traceability.md` tiene "Implementado". Código respeta contrato de API/Screen. Criterio G/W/T cumplido.
 2. **Prácticas:** Reglas de Beck, SOLID, GoF, detección de sobreingeniería.
 3. **Seguridad:** Validación de input, auth, sin secretos expuestos.
 4. **Eficiencia:** Uso idiomático del framework, evitado problema N+1, costo por función razonable.
+5. **Fidelidad visual** (solo si `audit_triage` la activó — slices con `rol: frontend`/`mobile` o diff en rutas de UI): la pantalla construida se compara contra `SCREEN-N.md`/prototipo aprobado, no solo se lee el código. Si hay app corriendo y MCP de inspección de navegador disponible, se usa para screenshot/snapshot real de la app contra el prototipo — comparar layout, componentes presentes, paleta, tipografía, copy estructural y estados (error/vacío/carga). Una desviación **justificada y documentada** (ADR o dato ilustrativo declarado) no es hallazgo; una desviación sin justificar sí. Si no hay forma de verificar visualmente (no hay MCP, la app no corre), el resultado es **INCONCLUSO** y cuenta como hallazgo bloqueante — nunca se asume "fiel" sin haber mirado el render real.
+6. **Usabilidad** (mismo trigger que Fidelidad): aplica las heurísticas de Krug ("Don't Make Me Think") — jerarquía visual clara, texto escaneable, convención sobre originalidad, lo clicable se ve clicable, todo estado (carga/error/vacío/foco) es explícito, errores con mensaje accionable. Si hay MCP de inspección de navegador disponible, usarlo para snapshot de accesibilidad (roles/labels/orden de foco) además de lectura de código. Cada hallazgo se clasifica BLOQUEANTE/RECOMENDADO/NIT; solo BLOQUEANTE cuenta para el gate.
 
 ## Paso: construction_integral_audit
 
@@ -105,8 +108,9 @@ Verificación adversarial de cableado, previa a `pr_gate`. Es el gate de cierre:
 
 - **Postura:** asume que la épica está incompleta y buscá evidencia de lo contrario. No es una relectura del código propio ("se ve bien"), es un intento activo de refutar que está lista: stubs, TODOs, rutas de UI sin cablear al backend, criterios de aceptación de HU sin una prueba real que los cubra.
 - **Contexto:** si el host soporta subagentes/contexto aislado, correlo en uno nuevo, sin el historial de la sesión que escribió el código — reduce el sesgo de "ya sé que esto funciona". Si no hay esa capacidad, igual ejecutá el checklist como si fuera la primera vez que ves el código.
-- **Checklist mecánico:** por cada escenario Given/When/Then de las HU de la épica y por cada punto de integración entre capas nuevas, registrar un ítem con `factory slice wiring add --epic EPIC-N <id> <ref> --by wiring_check`. Pasa a `passing` solo tras ejecutar una prueba real (no inspección visual) con `factory slice wiring status --epic EPIC-N <id> passing --evidence "<comando/resultado>" --by wiring_check`.
-- **Salida:** si queda algún ítem en `failing`, se reporta como hallazgo y `pr_gate` espera; no se abre PR con cableado sin verificar. Si todos pasan, `factory slice gate --epic EPIC-N wiring_verified true --by wiring_check`.
+- **Checklist mecánico:** por cada escenario Given/When/Then de las HU de la épica y por cada punto de integración entre capas nuevas, registrar un ítem con `factory slice wiring add --epic EPIC-N <id> <ref> --by wiring_check`.
+- **Evidencia mecánica antes de marcar `passing` (no confiar en el relato del agente):** antes de pasar cualquier ítem a `passing`, corré el comando/test real que lo prueba y anotá su código de salida, y corré `git rev-parse HEAD` en ese mismo instante. Un ítem solo pasa a `passing` con `factory slice wiring status --epic EPIC-N <id> passing --evidence "<comando>; exit=<código>; head=<hash>" --by wiring_check` — el `--evidence` debe citar el comando real corrido, su código de salida (debe ser `0`), y el hash de HEAD del momento de la corrida. Si el código cambió después de correr la evidencia (el `HEAD` actual ya no coincide con el citado), esa evidencia quedó obsoleta: hay que volver a correr el comando antes de confiar en el ítem, sin excepción — no se acredita cableado con evidencia de un commit anterior.
+- **Salida:** si queda algún ítem en `failing`, o algún `passing` cuya evidencia no cita comando/exit=0/head coincidente con el HEAD actual, se reporta como hallazgo y `pr_gate` espera; no se abre PR con cableado sin verificar. Si todos pasan con evidencia vigente, `factory slice gate --epic EPIC-N wiring_verified true --by wiring_check`.
 
 ## Paso: worktree_integration
 

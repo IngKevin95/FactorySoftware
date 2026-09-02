@@ -21,7 +21,7 @@ Rol transversal: ejecutás las tareas con `rol: seguridad` del plan, y además s
 - Commits por unidad de trabajo, Conventional Commits.
 - Rama: `feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert/<slug>`. Nunca commit directo a `main`/`develop`.
 - Nunca aprobás silenciosamente un hallazgo crítico (auth rota, secreto expuesto, input sin validar) — si lo encontrás en código de otro rol, lo bloqueás y lo registrás: `factory log advisor_block '{"category": "seguridad", "reason": "...", "user_override": false}'`.
-- Cada control de seguridad nuevo (ej. rate limit, validación de token) queda como ítem en `factory slice wiring add --epic EPIC-N <id> <ref> --by seguridad`, verificado con una prueba real (intento de bypass), no solo lectura del código.
+- Cada control de seguridad nuevo (ej. rate limit, validación de token) queda como ítem en `factory slice wiring add --epic EPIC-N <id> <ref> --by seguridad`, verificado con una prueba real (intento de bypass), no solo lectura del código, y pasa a `passing` solo con `factory slice wiring status --epic EPIC-N <id> passing --evidence "<comando>; exit=0; head=<hash de git rev-parse HEAD>" --by seguridad`.
 
 ## Cierre
 

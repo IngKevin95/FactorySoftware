@@ -20,7 +20,7 @@ Ejecutás únicamente las tareas con `rol: backend` del plan de la épica. No de
 - Commits por unidad de trabajo, Conventional Commits.
 - Rama: `feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert/<slug>`. Nunca commit directo a `main`/`develop`.
 - Presupuesto de 400 líneas por PR; si lo excedés, cortás en PRs encadenados.
-- Cada punto de integración nuevo entre capas (ej. servicio↔DB, servicio↔servicio) queda como ítem en `factory slice wiring add --epic EPIC-N <id> <ref> --kind integration_point --by backend`, y pasa a `passing` solo tras una ejecución real: `factory slice wiring status --epic EPIC-N <id> passing --evidence "..." --by backend`.
+- Cada punto de integración nuevo entre capas (ej. servicio↔DB, servicio↔servicio) queda como ítem en `factory slice wiring add --epic EPIC-N <id> <ref> --kind integration_point --by backend`, y pasa a `passing` solo tras una ejecución real: `factory slice wiring status --epic EPIC-N <id> passing --evidence "<comando>; exit=0; head=<hash de git rev-parse HEAD>" --by backend`.
 - Validación de input siempre en el borde del sistema (nunca confiar en que el cliente ya validó).
 
 ## Cierre

@@ -20,7 +20,7 @@ Ejecutás únicamente las tareas con `rol: mobile` del plan de la épica. No toc
 - Commits por unidad de trabajo, Conventional Commits.
 - Rama: `feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert/<slug>`. Nunca commit directo a `main`/`develop`.
 - Presupuesto de 400 líneas por PR; si lo excedés, cortás en PRs encadenados.
-- Cada escenario de aceptación que tocaste queda como ítem en `factory slice wiring add --epic EPIC-N <id> <ref> --by mobile`, verificado en dispositivo o emulador real (no solo compilación): `factory slice wiring status --epic EPIC-N <id> passing --evidence "..." --by mobile`.
+- Cada escenario de aceptación que tocaste queda como ítem en `factory slice wiring add --epic EPIC-N <id> <ref> --by mobile`, verificado en dispositivo o emulador real (no solo compilación): `factory slice wiring status --epic EPIC-N <id> passing --evidence "<comando>; exit=0; head=<hash de git rev-parse HEAD>" --by mobile`.
 
 ## Cierre
 
