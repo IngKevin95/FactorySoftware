@@ -154,3 +154,24 @@ def test_qa_coverage_gap_analysis_has_real_content_not_duplicated_stub():
     assert "docs/qa/plan.md" in gap
     assert gap != branch  # ya no son el mismo texto duplicado
     assert "feature/qa-coverage" in branch
+
+
+def test_qa_four_test_dimensions_have_distinct_real_content():
+    from pathlib import Path
+    content_path = (
+        Path(__file__).parent.parent
+        / "src" / "factorysoftware" / "content" / "qa.md"
+    )
+    content = parse_content(content_path)
+    integration = content.sections["integration_tests"]
+    e2e = content.sections["e2e_tests"]
+    nfr = content.sections["nfr_tests"]
+    security = content.sections["security_tests"]
+
+    texts = [integration, e2e, nfr, security]
+    assert len(set(texts)) == 4  # las 4 son distintas entre sí
+
+    assert "flujo-n" in e2e.lower()
+    assert "audit_evidence" in nfr.lower()
+    assert "medida de respuesta" in nfr.lower()
+    assert "advisor_block" in security.lower()

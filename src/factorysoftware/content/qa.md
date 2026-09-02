@@ -85,15 +85,7 @@ Arma `docs/qa/plan.md`: la lista de `TEST-N` que faltan para que el 100% de la f
 
 ## Paso: e2e_tests
 
-# qa-slide
-
-Orquestador de QA limitado al alcance de una Épica.
-
-- **Parámetros:** `epic_id` (obligatorio, ej. `EPIC-3`).
-- **Comportamiento:** "Corrée QA solo de lo que tocó la Épica".
-- `coverage_gap_analysis` filtra a HU/NFR pertenecientes exclusivamente a esa Épica, así como los `FLUJO-N` que estén **completamente** contenidos en ella (flujos que cruzan épicas se excluyen en este modo).
-- Crea una rama dedicada: `feature/qa-coverage-epic-<numero>-<slug>`.
-- Finaliza abriendo un PR específico e independiente para este slide.
+Una instancia por `TEST-N` de tipo `e2e` — una por cada `FLUJO-N` sin cobertura. Sigue la secuencia de HU declarada en `docs/requirements/flujos/FLUJO-N.md`, usando la navegación real de las pantallas (ya debe honrar el flujo, verificado en la fase de Arquitectura). El criterio de éxito no es que cada HU aislada pase — es el **criterio de éxito del flujo completo** declarado en el propio `FLUJO-N.md` (un flujo puede fallar aunque cada HU pase sus tests por separado, ej. un dato que una HU guarda no es el que otra espera leer después).
 
 ## Paso: qa_branch_setup
 
@@ -101,39 +93,21 @@ Crea `feature/qa-coverage-<slug>` desde `develop` (con todas las Épicas de Cons
 
 ## Paso: integration_tests
 
-# qa-slide
-
-Orquestador de QA limitado al alcance de una Épica.
-
-- **Parámetros:** `epic_id` (obligatorio, ej. `EPIC-3`).
-- **Comportamiento:** "Corrée QA solo de lo que tocó la Épica".
-- `coverage_gap_analysis` filtra a HU/NFR pertenecientes exclusivamente a esa Épica, así como los `FLUJO-N` que estén **completamente** contenidos en ella (flujos que cruzan épicas se excluyen en este modo).
-- Crea una rama dedicada: `feature/qa-coverage-epic-<numero>-<slug>`.
-- Finaliza abriendo un PR específico e independiente para este slide.
+Una instancia por `TEST-N` de tipo `integration` en `docs/qa/plan.md`. Toma como base los tests unitarios que ya escribió Construcción — no los repite, agrega la integración entre las unidades reales del stack (DB real o de test, servicios reales entre sí, sin mocks de la propia capa que se está integrando). Vive en `tests/integration/` o la convención del stack del proyecto (QA no inventa su propia carpeta).
 
 ## Paso: nfr_tests
 
-# qa-slide
+Una instancia por `TEST-N` de tipo `nfr` — una por cada `NFR-N` de `docs/architecture/constraints.md` sin verificación real todavía. Corre el test de carga/performance/lo que corresponda al NFR concreto y **mide de verdad**, nunca estima. Registra el resultado con:
 
-Orquestador de QA limitado al alcance de una Épica.
+`factory log audit_evidence --data '{"nfr": "NFR-N", "medido": <valor real medido>, "objetivo": "<Medida de respuesta declarada en constraints.md>", "cumple": true|false, "git_head": "<git rev-parse HEAD>"}'`
 
-- **Parámetros:** `epic_id` (obligatorio, ej. `EPIC-3`).
-- **Comportamiento:** "Corrée QA solo de lo que tocó la Épica".
-- `coverage_gap_analysis` filtra a HU/NFR pertenecientes exclusivamente a esa Épica, así como los `FLUJO-N` que estén **completamente** contenidos en ella (flujos que cruzan épicas se excluyen en este modo).
-- Crea una rama dedicada: `feature/qa-coverage-epic-<numero>-<slug>`.
-- Finaliza abriendo un PR específico e independiente para este slide.
+Si `cumple` es `false`, es hallazgo **Bloqueante** — nunca "se documenta y se sigue". Se escala al usuario mostrando medido vs. objetivo; la resolución puede requerir volver a Construcción (optimizar) o a Arquitectura (revisar la ADR o el NFR mismo). QA no "arregla" el sistema para que el número cierre, solo mide y reporta con honestidad.
 
 ## Paso: security_tests
 
-# qa-slide
+Pasada única y holística sobre todo el sistema integrado (no por-épica, a diferencia de `audit_security` de Construcción): SAST/dependency scanning más escenarios de seguridad puntuales que solo son visibles con el sistema completo (ej. un endpoint de una épica combinado con datos de otra puede abrir un camino que ninguna auditoría por-épica ve sola). Todo hallazgo tiene severidad (Bloqueante/Mayor/Menor). Todo hallazgo **Bloqueante** pasa por el mecanismo `advisor_block` del núcleo antes de seguir — nunca queda "reportado nomás" sin confirmación explícita del usuario:
 
-Orquestador de QA limitado al alcance de una Épica.
-
-- **Parámetros:** `epic_id` (obligatorio, ej. `EPIC-3`).
-- **Comportamiento:** "Corrée QA solo de lo que tocó la Épica".
-- `coverage_gap_analysis` filtra a HU/NFR pertenecientes exclusivamente a esa Épica, así como los `FLUJO-N` que estén **completamente** contenidos en ella (flujos que cruzan épicas se excluyen en este modo).
-- Crea una rama dedicada: `feature/qa-coverage-epic-<numero>-<slug>`.
-- Finaliza abriendo un PR específico e independiente para este slide.
+`factory log advisor_block --data '{"category": "seguridad", "reason": "...", "user_override": true|false}'`
 
 ## Paso: traceability_update
 
