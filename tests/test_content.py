@@ -117,3 +117,79 @@ def test_parse_content_with_unit_and_role(tmp_path: Path):
     assert content.steps[0].fan_out == "una por Épica"
     assert content.steps[0].paralelizable is True
     assert content.steps[1].rol == "Auditor"
+
+
+def test_qa_content_pack_has_full_dependency_graph():
+    from pathlib import Path
+    content_path = (
+        Path(__file__).parent.parent
+        / "src" / "factorysoftware" / "content" / "qa.md"
+    )
+    content = parse_content(content_path)
+    by_id = {s.id: s for s in content.steps}
+    assert by_id["coverage_gap_analysis"].depende_de == []
+    assert by_id["qa_branch_setup"].depende_de == ["coverage_gap_analysis"]
+    for step_id in ("integration_tests", "e2e_tests", "nfr_tests", "security_tests"):
+        assert by_id[step_id].depende_de == ["qa_branch_setup"]
+    assert set(by_id["traceability_update"].depende_de) == {
+        "integration_tests", "e2e_tests", "nfr_tests", "security_tests"
+    }
+    assert by_id["qa_audit"].depende_de == ["traceability_update"]
+    assert by_id["qa_audit"].rol == "Auditor"
+    assert by_id["qa_integral_audit"].depende_de == ["qa_audit"]
+    assert by_id["qa_integral_audit"].rol == "Auditor Integral"
+    assert by_id["pr_gate"].depende_de == ["qa_integral_audit"]
+
+
+def test_qa_coverage_gap_analysis_has_real_content_not_duplicated_stub():
+    from pathlib import Path
+    content_path = (
+        Path(__file__).parent.parent
+        / "src" / "factorysoftware" / "content" / "qa.md"
+    )
+    content = parse_content(content_path)
+    gap = content.sections["coverage_gap_analysis"].lower()
+    branch = content.sections["qa_branch_setup"].lower()
+    assert "test-n" in gap
+    assert "docs/qa/plan.md" in gap
+    assert gap != branch  # ya no son el mismo texto duplicado
+    assert "feature/qa-coverage" in branch
+
+
+def test_qa_four_test_dimensions_have_distinct_real_content():
+    from pathlib import Path
+    content_path = (
+        Path(__file__).parent.parent
+        / "src" / "factorysoftware" / "content" / "qa.md"
+    )
+    content = parse_content(content_path)
+    integration = content.sections["integration_tests"]
+    e2e = content.sections["e2e_tests"]
+    nfr = content.sections["nfr_tests"]
+    security = content.sections["security_tests"]
+
+    texts = [integration, e2e, nfr, security]
+    assert len(set(texts)) == 4  # las 4 son distintas entre sí
+
+    assert "flujo-n" in e2e.lower()
+    assert "audit_evidence" in nfr.lower()
+    assert "medida de respuesta" in nfr.lower()
+    assert "advisor_block" in security.lower()
+
+
+def test_qa_audit_steps_have_distinct_real_content():
+    from pathlib import Path
+    content_path = (
+        Path(__file__).parent.parent
+        / "src" / "factorysoftware" / "content" / "qa.md"
+    )
+    content = parse_content(content_path)
+    qa_audit = content.sections["qa_audit"]
+    qa_integral = content.sections["qa_integral_audit"]
+    pr_gate = content.sections["pr_gate"]
+
+    assert len({qa_audit, qa_integral, pr_gate}) == 3
+    assert "audit_coverage" in qa_audit.lower()
+    assert "audit_nfr_compliance" in qa_audit.lower()
+    assert "flujo-n" in qa_integral.lower()
+    assert "develop" in pr_gate.lower()
