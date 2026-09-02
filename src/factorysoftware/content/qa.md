@@ -75,15 +75,13 @@ Orquestador de QA limitado al alcance de una Épica.
 
 ## Paso: coverage_gap_analysis
 
-# qa-slide
+Arma `docs/qa/plan.md`: la lista de `TEST-N` que faltan para que el 100% de la funcionalidad declarada en Requerimientos quede probado más allá de lo unitario ya cubierto en Construcción.
 
-Orquestador de QA limitado al alcance de una Épica.
-
-- **Parámetros:** `epic_id` (obligatorio, ej. `EPIC-3`).
-- **Comportamiento:** "Corrée QA solo de lo que tocó la Épica".
-- `coverage_gap_analysis` filtra a HU/NFR pertenecientes exclusivamente a esa Épica, así como los `FLUJO-N` que estén **completamente** contenidos en ella (flujos que cruzan épicas se excluyen en este modo).
-- Crea una rama dedicada: `feature/qa-coverage-epic-<numero>-<slug>`.
-- Finaliza abriendo un PR específico e independiente para este slide.
+- Lee `docs/requirements/traceability.md`: qué HU ya tienen test unitario pero no integración/e2e donde corresponda.
+- Lee `docs/requirements/flujos/FLUJO-N.md`: qué flujos de negocio no tienen todavía un e2e real corriendo.
+- Lee `docs/architecture/constraints.md`: qué `NFR-N` no tienen verificación real medida todavía.
+- **Salida:** `docs/qa/plan.md` con una entrada por cada `TEST-N` faltante. Cada entrada: `id` (`TEST-N`), `tipo` (`integration`|`e2e`|`nfr`|`security`), `cubre` (ids de HU para `integration`, un `FLUJO-N` para `e2e`, un `NFR-N` para `nfr`, o `general` para `security`), `depende_de` (otros `TEST-N`, si aplica), `estado: pendiente`.
+- **Definición operativa de "100% de cobertura":** no es porcentaje de líneas. Es que toda HU no retirada tenga, para cada criterio Given/When/Then, al menos un test real referenciado en la columna "Casos de prueba" de `traceability.md` — verificación de referencia cruzada, no métrica estadística.
 
 ## Paso: e2e_tests
 
@@ -99,15 +97,7 @@ Orquestador de QA limitado al alcance de una Épica.
 
 ## Paso: qa_branch_setup
 
-# qa-slide
-
-Orquestador de QA limitado al alcance de una Épica.
-
-- **Parámetros:** `epic_id` (obligatorio, ej. `EPIC-3`).
-- **Comportamiento:** "Corrée QA solo de lo que tocó la Épica".
-- `coverage_gap_analysis` filtra a HU/NFR pertenecientes exclusivamente a esa Épica, así como los `FLUJO-N` que estén **completamente** contenidos en ella (flujos que cruzan épicas se excluyen en este modo).
-- Crea una rama dedicada: `feature/qa-coverage-epic-<numero>-<slug>`.
-- Finaliza abriendo un PR específico e independiente para este slide.
+Crea `feature/qa-coverage-<slug>` desde `develop` (con todas las Épicas de Construcción ya mergeadas a esta altura). Mecánico, sin juicio de agente.
 
 ## Paso: integration_tests
 

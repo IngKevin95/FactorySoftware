@@ -139,3 +139,18 @@ def test_qa_content_pack_has_full_dependency_graph():
     assert by_id["qa_integral_audit"].depende_de == ["qa_audit"]
     assert by_id["qa_integral_audit"].rol == "Auditor Integral"
     assert by_id["pr_gate"].depende_de == ["qa_integral_audit"]
+
+
+def test_qa_coverage_gap_analysis_has_real_content_not_duplicated_stub():
+    from pathlib import Path
+    content_path = (
+        Path(__file__).parent.parent
+        / "src" / "factorysoftware" / "content" / "qa.md"
+    )
+    content = parse_content(content_path)
+    gap = content.sections["coverage_gap_analysis"].lower()
+    branch = content.sections["qa_branch_setup"].lower()
+    assert "test-n" in gap
+    assert "docs/qa/plan.md" in gap
+    assert gap != branch  # ya no son el mismo texto duplicado
+    assert "feature/qa-coverage" in branch
