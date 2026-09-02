@@ -41,6 +41,42 @@ def test_gwt_scenarios_without_enough_tests_referenced(base):
     errors = validate_qa(base)
     assert any("HU-1.1" in e and "criterio" in e.lower() for e in errors)
 
+def _hu_with_multiline_gwt(n_scenarios: int) -> str:
+    # Realistic HU rendering: Given/When/Then each as separate bullet lines,
+    # one scenario block per criterio de aceptación.
+    blocks = []
+    for i in range(n_scenarios):
+        blocks.append(
+            f"### Criterio {i}\n"
+            f"- **Given** a{i}\n"
+            f"- **When** b{i}\n"
+            f"- **Then** c{i}\n"
+        )
+    return "\n".join(blocks)
+
+def test_multiline_gwt_scenarios_without_enough_tests_referenced(base):
+    _write(base / "docs" / "requirements" / "stories" / "HU-1.1.md",
+           "---\nid: HU-1.1\n---\n" + _hu_with_multiline_gwt(2))
+    # traceability.md (from `base` fixture) still references only TEST-1,
+    # but the HU now has 2 multi-line Given/When/Then scenarios.
+    errors = validate_qa(base)
+    assert any("HU-1.1" in e and "criterio" in e.lower() for e in errors)
+
+def test_multiline_gwt_scenarios_with_enough_tests_is_clean(base):
+    _write(base / "docs" / "requirements" / "stories" / "HU-1.1.md",
+           "---\nid: HU-1.1\n---\n" + _hu_with_multiline_gwt(1))
+    _write(base / "docs" / "requirements" / "traceability.md",
+           _traceability([("HU-1.1", "EPIC-1", "TEST-1")]))
+    assert validate_qa(base) == []
+
+def test_hu_with_blank_casos_de_prueba_cell_is_reported(base):
+    _write(base / "docs" / "requirements" / "traceability.md",
+           "| HU | Epica | Estado | Casos de prueba | Componentes de arquitectura |\n"
+           "|---|---|---|---|---|\n"
+           "| HU-1.1 | EPIC-1 | draft | | _n/a_ |\n")
+    errors = validate_qa(base)
+    assert any("HU-1.1" in e and "Casos de prueba" in e for e in errors)
+
 def test_nfr_without_audit_evidence_is_reported(tmp_path: Path):
     arch = tmp_path / "docs" / "architecture"
     _write(arch / "constraints.md", "| NFR-1 | Medida | p95 < 200ms |\n")

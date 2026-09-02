@@ -17,7 +17,7 @@ def _parse_frontmatter(text: str) -> dict:
         return {}
 
 
-_GWT_RE = re.compile(r"\bGiven\b.*?\bWhen\b.*?\bThen\b")
+_GIVEN_RE = re.compile(r"\bGiven\b")
 _TRACE_ROW_RE = re.compile(r"^\|\s*(HU-\d+\.\d+)\s*\|[^|]*\|[^|]*\|([^|]*)\|")
 _NFR_ROW_RE = re.compile(r"\|\s*(NFR-\d+)\s*\|")
 
@@ -44,7 +44,7 @@ def validate_qa(project_root: Path) -> list[str]:
             if not m:
                 continue
             hu_id, cell = m.group(1), m.group(2).strip()
-            if cell.startswith("_") and cell.endswith("_"):
+            if not cell or (cell.startswith("_") and cell.endswith("_")):
                 trace_tests[hu_id] = []
                 errors.append(
                     f"Check 1: HU '{hu_id}' has no 'Casos de prueba' referenced in traceability.md"
@@ -55,12 +55,10 @@ def validate_qa(project_root: Path) -> list[str]:
     stories_dir = docs / "requirements" / "stories"
     if stories_dir.exists():
         for hu_path in stories_dir.glob("HU-*.md"):
-            if "retiradas" in hu_path.parts:
-                continue
             text = hu_path.read_text(encoding="utf-8")
             fm = _parse_frontmatter(text)
             hu_id = fm.get("id", hu_path.stem)
-            n_scenarios = len(_GWT_RE.findall(text))
+            n_scenarios = len(_GIVEN_RE.findall(text))
             n_tests = len(trace_tests.get(hu_id, []))
             if n_scenarios > 0 and n_tests < n_scenarios:
                 errors.append(

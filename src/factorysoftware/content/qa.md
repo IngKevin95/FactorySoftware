@@ -33,7 +33,7 @@ steps:
     paralelizable: false
   - id: qa_audit
     depende_de: ['traceability_update']
-    fan_out: null
+    fan_out: "audit_coverage [mecánico], audit_nfr_compliance [mecánico], audit_test_quality [agéntico], audit_security_findings [agéntico]"
     paralelizable: true
     rol: Auditor
   - id: qa_integral_audit
@@ -53,7 +53,7 @@ Content pack de la fábrica para la fase de qa.
 
 Auditoría con tope de 3 iteraciones compartidas, 4 sub-checks — 2 mecánicos, 2 semánticos, las 4 corren en paralelo cuando el proveedor lo soporta:
 
-1. **`audit_coverage`** (mecánico — correr `factory validate qa --project-root .`): toda HU no retirada en `traceability.md` tiene "Casos de prueba" no vacío con ids que existen de verdad; todo criterio Given/When/Then de cada HU está cubierto por al menos un test.
+1. **`audit_coverage`** (mecánico — correr `factory validate qa --project-root .`): toda HU no retirada en `traceability.md` tiene "Casos de prueba" no vacío y sin placeholder; la cantidad de tests referenciados por HU es al menos la cantidad de escenarios `Given` de su historia. (La validación mecánica no resuelve si esos ids corresponden a archivos de test reales en el repo — eso queda a criterio del sub-check agéntico `audit_test_quality`.)
 2. **`audit_nfr_compliance`** (mecánico — mismo comando): todo `NFR-N` de `constraints.md` tiene un evento `audit_evidence` logueado con `git_head` vigente, y su valor medido cumple la "Medida de respuesta" declarada.
 3. **`audit_test_quality`** (semántico): los tests no son triviales (sin asserts vacíos, sin solo verificar "no explota"), ejercitan comportamiento real de negocio (no detalles de implementación frágiles ante un refactor válido), sin `sleep` fijo ni dependencia de orden de ejecución entre tests.
 4. **`audit_security_findings`** (semántico): todo hallazgo de `security_tests` tiene severidad asignada; todo hallazgo Bloqueante pasó por `advisor_block` — ninguno queda reportado sin la confirmación explícita del usuario.
@@ -106,7 +106,7 @@ Pasada única y holística sobre todo el sistema integrado (no por-épica, a dif
 
 # traceability_update
 
-Completa la columna "Casos de prueba" del documento `docs/requirements/traceability.md` referenciando explícitamente los IDs de los tests reales (integración, e2e) creados/verificados en los pasos anteriores.
+Completa la columna "Casos de prueba" del documento `docs/requirements/traceability.md` referenciando explícitamente los IDs de los tests reales (integración, e2e) creados/verificados en los pasos anteriores. También refleja de forma consistente con `docs/qa/plan.md` la cobertura derivada de NFR y de flujos, para que ambos documentos no queden contradictorios entre sí.
 Asegura que la tabla finalice completa de forma mecánica y precisa.
 
 ## Paso: pr_gate
