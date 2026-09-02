@@ -46,7 +46,7 @@ def _load_skill_map(content_dir: Path) -> dict[str, str]:
     stderr y se sigue con los demás.
     """
     skill_map: dict[str, str] = {}
-    for content_path in sorted(content_dir.glob("*.md")):
+    for content_path in sorted(content_dir.glob("**/*.md")):
         try:
             content = parse_content(content_path)
         except (OSError, ValueError, KeyError) as e:

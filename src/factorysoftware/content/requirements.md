@@ -5,6 +5,10 @@ steps:
     depende_de: []
     fan_out: null
     paralelizable: false
+  - id: project_memory_setup
+    depende_de: [prd]
+    fan_out: null
+    paralelizable: true
   - id: epics
     depende_de: [prd]
     fan_out: null
@@ -60,6 +64,28 @@ Archivo `docs/requirements/PRD.md` con estas secciones en orden (sin detalle tec
 - [ ] Logear en `.factory/log.jsonl`:
   `{"type": "step_complete", "step": "prd", "output_files": ["docs/requirements/PRD.md"]}`
 - [ ] Confirmar al usuario que el PRD fue guardado y mostrar su ruta.
+
+## Paso: project_memory_setup
+
+### Paso opcional (paralelo a epics) — memoria de proyecto en `docs/memory/`
+
+Genera contexto de dominio estable — el que un auditor humano o un agente frío necesita para entender el proyecto sin releer toda la conversación. Distinto del log cronológico de decisiones (`factory log memory`, ver `content/construction.md`): esto es una foto fija del dominio, no una bitácora que crece.
+
+**Idempotencia:** correr una sola vez. Si `docs/memory/MEMORY.md` ya existe, no lo pises — el usuario o una fase posterior puede haberlo editado a mano.
+
+## Pasos
+
+- [ ] Si `docs/memory/MEMORY.md` ya existe: saltar este paso entero, no continuar.
+- [ ] A partir del PRD, generar `docs/memory/*.md` (uno por tema, frontmatter `name`/`description`) para los temas que apliquen al proyecto:
+  - `design_source.md` — ¿el proyecto tiene UI propia? ¿hay fuente de diseño (prototipo/export)? Si no aplica, decirlo explícitamente (N/A no es un hueco).
+  - `deterministic_layer.md` — si el proyecto integra un LLM/IA en runtime: qué lógica NO puede delegarse a él (persistencia, validación de argumentos, invariantes de negocio).
+  - `external_service_layer.md` — servicios externos/APIs de terceros que el proyecto integra.
+  - `high_stakes_decisions.md` — decisiones de alto impacto que requieren explicabilidad hacia el usuario final (ej. escalar a humano, rechazar una operación).
+  - `sensitive_data.md` — categorías de datos sensibles/PII que el proyecto maneja.
+  - `server_side_secrets.md` — secretos que jamás deben llegar al cliente (tabla: secreto, dónde se usa, riesgo si se filtra).
+- [ ] Omitir cualquier archivo cuyo tema no aplique al proyecto (ej. sin integraciones externas → no crear `external_service_layer.md`).
+- [ ] Generar `docs/memory/MEMORY.md` como índice: una línea por archivo con su propósito.
+- [ ] Logear `{"type": "step_complete", "step": "project_memory_setup", "output_files": [...lista de archivos creados...]}`.
 
 ## Paso: epics
 

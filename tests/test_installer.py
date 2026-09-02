@@ -76,6 +76,30 @@ def test_install_all_writes_files_and_manifest(tmp_path: Path):
     assert (tmp_path / "requirements-flujo.md").exists()
 
 
+_FIXTURE_ROLE_STANDALONE = """\
+---
+name: role-frontend
+description: Rol Frontend de prueba.
+---
+Descripción corta del rol.
+
+Cuerpo del rol.
+"""
+
+
+def test_install_all_picks_up_content_in_subdirectories(tmp_path: Path):
+    content_dir = tmp_path / "content"
+    content_dir.mkdir()
+    (content_dir / "requirements.md").write_text(_FIXTURE_PHASE, encoding="utf-8")
+    (content_dir / "roles").mkdir()
+    (content_dir / "roles" / "frontend.md").write_text(_FIXTURE_ROLE_STANDALONE, encoding="utf-8")
+
+    manifest = install_all(tmp_path, content_dir, adapters=[_MultiFileAdapter()])
+
+    assert {f.skill_id for f in manifest.files} >= {"requirements-prd", "requirements-flujo", "role-frontend"}
+    assert (tmp_path / "role-frontend.md").exists()
+
+
 _FIXTURE_PHASE_2 = """\
 ---
 id: architecture

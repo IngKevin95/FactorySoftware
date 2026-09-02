@@ -15,12 +15,45 @@ class ProviderAdapter(Protocol):
     def render(self, skill_id: str, content_md: str) -> str: ...
 
 
+# Prefijo que marca un skill_id como "pack de rol" (content/roles/*.md, ver
+# docs/CREDITS.md — adaptado de YarnovaSoft/.opencode/agents y de los agentes
+# especializados por gate de DemoWhatsappAgent/.claude/agents/build). Los
+# adapters que soportan subagentes nativos (Claude Code, OpenCode) instalan
+# estos IDs en el directorio de agents del host en vez del de skills, así el
+# host puede invocar/enrutar a ese rol como un agente propio y no como una
+# skill más. Los adapters de archivo único (Codex, Copilot) no tienen ese
+# concepto, así que no necesitan branch: el rol termina como una sección más
+# del único archivo que ya escriben.
+ROLE_PREFIX = "role-"
+
+
+def is_role_skill(skill_id: str) -> bool:
+    return skill_id.startswith(ROLE_PREFIX)
+
+
+def role_name(skill_id: str) -> str:
+    return skill_id[len(ROLE_PREFIX):]
+
+
+def role_description(content_md: str) -> str:
+    """Primera línea no vacía del body: por convención, la descripción corta del rol."""
+    for line in content_md.splitlines():
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return content_md.strip()
+
+
 # Guardia de Git Flow compartida por los adapters primarios (Claude Code y
 # Antigravity). Es un badén de conveniencia, NO una frontera de seguridad:
 # hace pattern-matching sobre el string "command" del payload JSON del hook, así
 # que variantes como `git  commit` (dos espacios) o `cd sub && git push` lo
 # esquivan. Sirve para evitar el commit distraído a main/develop, no para
-# impedir a alguien que quiera saltárselo.
+# impedir a alguien que quiera saltárselo. También bloquea `git commit` en una
+# rama que no siga la convención feat|fix|chore|docs|style|refactor|perf|test|
+# build|ci|revert/<slug> (ver `content/construction.md`, paso `branch_setup`).
+# Adaptado del patrón de gitflow-guard.sh de DemoWhatsappAgent/.claude (mismo
+# usuario) — ver docs/CREDITS.md.
 GUARD_SCRIPT = """\
 #!/bin/sh
 input=$(cat)
@@ -32,6 +65,18 @@ case "$cmd" in
       echo "Bloqueado: commit/push directo a $branch prohibido por Git Flow. Usa una rama feature/*." >&2
       exit 2
     fi
+    case "$cmd" in
+      *"git commit"*)
+        case "$branch" in
+          feat/*|fix/*|chore/*|docs/*|style/*|refactor/*|perf/*|test/*|build/*|ci/*|revert/*) ;;
+          *)
+            echo "Bloqueado: rama '$branch' no sigue la convencion de nombres." >&2
+            echo "Usa feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert/<slug>." >&2
+            exit 2
+            ;;
+        esac
+        ;;
+    esac
     ;;
 esac
 exit 0

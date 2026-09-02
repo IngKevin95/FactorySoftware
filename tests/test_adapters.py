@@ -48,6 +48,20 @@ def test_claude_code_render_adds_frontmatter():
     assert "Hacé el PRD." in rendered
 
 
+def test_claude_code_target_paths_role_skill_goes_to_agents_dir(tmp_path: Path):
+    paths = ClaudeCodeAdapter().target_paths(tmp_path, ["role-frontend"])
+    assert paths["role-frontend"] == tmp_path / ".claude" / "agents" / "frontend.md"
+
+
+def test_claude_code_render_role_skill_uses_agent_frontmatter():
+    rendered = ClaudeCodeAdapter().render("role-frontend", "Descripción corta.\n\nResto del prompt.")
+    assert rendered.startswith("---\n")
+    assert "name: frontend" in rendered
+    assert "description: Descripción corta." in rendered
+    assert "tools:" in rendered
+    assert "Resto del prompt." in rendered
+
+
 def test_install_gitflow_hook_writes_guard_script(tmp_path: Path):
     written = ClaudeCodeAdapter().install_gitflow_hook(tmp_path)
     guard = tmp_path / ".claude" / "hooks" / "gitflow-guard.sh"
@@ -247,6 +261,13 @@ def test_copilot_render_adds_heading():
     assert "Hacé el PRD." in rendered
 
 
+def test_copilot_render_role_skill_notes_no_native_subagent():
+    rendered = CopilotAdapter().render("role-backend", "Descripción.\n\nResto.")
+    assert "Rol: backend" in rendered
+    assert "no tiene subagentes nativos" in rendered
+    assert "Resto." in rendered
+
+
 from factorysoftware.adapters.codex import CodexAdapter
 from factorysoftware.adapters.opencode import OpenCodeAdapter
 
@@ -271,9 +292,29 @@ def test_codex_render_is_plain_no_frontmatter():
     assert "Hacé el PRD." in rendered
 
 
+def test_codex_render_role_skill_notes_no_native_subagent():
+    rendered = CodexAdapter().render("role-frontend", "Descripción.\n\nResto.")
+    assert "Rol: frontend" in rendered
+    assert "no tiene subagentes nativos" in rendered
+    assert "Resto." in rendered
+
+
 def test_opencode_target_paths_same_as_codex(tmp_path: Path):
     paths = OpenCodeAdapter().target_paths(tmp_path, ["a"])
     assert paths["a"] == tmp_path / "AGENTS.md"
+
+
+def test_opencode_target_paths_role_skill_goes_to_agents_dir(tmp_path: Path):
+    paths = OpenCodeAdapter().target_paths(tmp_path, ["role-backend"])
+    assert paths["role-backend"] == tmp_path / ".opencode" / "agents" / "backend.md"
+
+
+def test_opencode_render_role_skill_uses_subagent_frontmatter():
+    rendered = OpenCodeAdapter().render("role-backend", "Descripción corta.\n\nResto del prompt.")
+    assert rendered.startswith("---\n")
+    assert "description: Descripción corta." in rendered
+    assert "mode: subagent" in rendered
+    assert "Resto del prompt." in rendered
 
 
 def test_opencode_detect_false_without_marker(tmp_path: Path):
@@ -301,6 +342,14 @@ def test_antigravity_render_adds_frontmatter():
     rendered = AntigravityAdapter().render("requirements-prd", "Hacé el PRD.")
     assert "name: requirements-prd" in rendered
     assert "Hacé el PRD." in rendered
+
+
+def test_antigravity_render_role_skill_notes_no_native_subagent():
+    rendered = AntigravityAdapter().render("role-data", "Descripción corta.\n\nResto.")
+    assert "name: role-data" in rendered
+    assert "description: Descripción corta." in rendered
+    assert "Sin subagente nativo separado" in rendered
+    assert "Resto." in rendered
 
 
 def test_antigravity_install_gitflow_hook_writes_hooks_json(tmp_path: Path):
