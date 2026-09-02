@@ -150,7 +150,8 @@ def cmd_validate_architecture(args) -> int:
 
 
 def cmd_validate_construction(args: argparse.Namespace) -> int:
-    errors = validate_construction(Path(args.project_root))
+    content_roles_dir = Path(__file__).parent / "content" / "roles"
+    errors = validate_construction(Path(args.project_root), content_roles_dir=content_roles_dir)
     for e in errors:
         print(e, file=sys.stderr)
     return 1 if errors else 0
